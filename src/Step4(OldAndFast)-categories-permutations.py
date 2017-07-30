@@ -7,13 +7,11 @@ import pandas as pd
 
 DATA_ROOT = "C:\\RS\\Amazon\\All\\"
 MINIMUM_X_CATEGORIES_FILENAME = 'minimum_2_Categories.csv'
-X = 5
 
 timestamp = time.strftime('%y%m%d%H%M%S')
 out_filename = os.path.join(DATA_ROOT, timestamp + 'categories_permutations.csv')
 with open(out_filename, 'w', newline='', encoding='utf8') as sum_f:
     writer = csv.writer(sum_f, delimiter=',', lineterminator='\n')
-    f = open(os.path.join(DATA_ROOT, 'test.csv'), 'rt')
     entire_data = pd.read_csv(os.path.join(DATA_ROOT, MINIMUM_X_CATEGORIES_FILENAME))
     categories = entire_data.columns
     row = ['idx_cat_a', 'cat_a', 'idx_cat_b', 'cat_b', 'user_count', 'item_count_a', 'item_count_b', 'item_both']
