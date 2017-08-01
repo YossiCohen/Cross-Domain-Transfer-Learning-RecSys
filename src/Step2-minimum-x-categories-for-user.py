@@ -7,7 +7,7 @@ import os
 
 DATA_ROOT = "C:\\RS\\Amazon\\All\\"
 SUMMARY_FILENAME = 'all_csv_summary.csv'
-X = 5
+X = 2
 
 timestamp = time.strftime('%y%m%d%H%M%S')
 out_filename = os.path.join(DATA_ROOT, timestamp + 'minimum_'+str(X)+'_Categories.csv')
