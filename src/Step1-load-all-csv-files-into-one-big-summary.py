@@ -2,7 +2,7 @@ import csv
 import os
 import time
 # Load all CSV files into one big summary table with users and number of items per category
-DATA_ROOT = "C:\\RS\\Amazon\\All\\"
+DATA_ROOT = "C:\\RS\\Amazon\\All\\MINIMAL_THRESHOLD_30\\"
 from collections import defaultdict
 
 

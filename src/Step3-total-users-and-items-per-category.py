@@ -3,11 +3,11 @@ import csv
 import time
 import os
 
-DATA_ROOT = "C:\\RS\\Amazon\\All\\"
+DATA_ROOT = "C:\\RS\\Amazon\\All\\MINIMAL_THRESHOLD_30\\"
 SUMMARY_FILENAME = 'all_csv_summary.csv'
 
 timestamp = time.strftime('%y%m%d%H%M%S')
-out_filename = os.path.join(DATA_ROOT, timestamp + 'total_users_and_items_per_cat.csv')
+out_filename = os.path.join(DATA_ROOT, timestamp + 'total_users_and_items_per_category.csv')
 categories = []
 cat_users = dict()
 cat_items = dict()

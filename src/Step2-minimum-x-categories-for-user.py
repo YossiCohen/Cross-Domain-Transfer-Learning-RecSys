@@ -5,7 +5,7 @@ import os
 
 #Extract from the summary only users with minimum of X categories they bought from
 
-DATA_ROOT = "C:\\RS\\Amazon\\All\\"
+DATA_ROOT = "C:\\RS\\Amazon\\All\\MINIMAL_THRESHOLD_30\\"
 SUMMARY_FILENAME = 'all_csv_summary.csv'
 X = 2
 

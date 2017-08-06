@@ -6,7 +6,7 @@ import os
 import pandas as pd
 import numpy as np
 
-DATA_ROOT = "C:\\RS\\Amazon\\All\\"
+DATA_ROOT = "C:\\RS\\Amazon\\All\\MINIMAL_THRESHOLD_30"
 TOTAL_USERS_AND_ITEMS_PER_CATEGORY = 'total_users_and_items_per_category.csv'
 MINIMUM_X_CATEGORIES_FILENAME = 'minimum_2_Categories.csv'
 
@@ -44,7 +44,7 @@ with open(out_filename, 'w', newline='', encoding='utf8') as sum_f:
 
     writer.writerow(row)
     for idx_cat_a, cat_a in enumerate(categories):
-        if idx_cat_a != 19:
+        if idx_cat_a == 0:
             continue
         for idx_cat_b, cat_b in enumerate(categories):
             if idx_cat_b <= idx_cat_a:
