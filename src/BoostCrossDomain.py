@@ -3,6 +3,7 @@ import csv
 import os
 import time
 import pandas as pd
+from sklearn.model_selection import train_test_split
 
 from surprise import Reader
 from surprise import SVD
@@ -46,8 +47,6 @@ class BoostCrossDomain(object):
             self.category_pair_filenames[category_filename] = list()
             self.category_pair_filenames[category_filename].append(source_cat_file)
             self.category_pair_filenames[category_filename].append(target_cat_file)
-
-
         self.step += 1
 
     def generate_crossdomain_rating_files(self, big_table, first_category_filename, second_category_filename, minimal_item_count):
@@ -70,30 +69,46 @@ class BoostCrossDomain(object):
         return out_filename
 
     def split_to_train_and_test(self, folds = 3):
-        if self.step != 2:
-            raise "Error in step!"
-        print('2: split_to_train_and_test Started...')
-        self.svd_models = {}
+        test_percent = 1/folds
+        self.folds_names = {}
         for key_cat, common_rating_files in self.category_pair_filenames.items():
-            print('--creating folds to target model with:{}'.format(key_cat))
-            # source_category_file = open(common_rating_files[0], 'rt')
-            # target_category_file = open(common_rating_files[1], 'rt')
+            self.folds_names[key_cat] = list()
+            print('--creating folds to train models with:{}'.format(key_cat))
             try:
                 source_data = pd.read_csv(self.get_temp_full_path(common_rating_files[0]), index_col=0, header=None)
                 target_data = pd.read_csv(self.get_temp_full_path(common_rating_files[1]), index_col=0, header=None)
 
-                with open(self.get_temp_full_path(key_cat) + '_train.csv', 'a') as f:
-                    source_data.to_csv(f, header=False)
-                with open(self.get_temp_full_path(key_cat) + '_test.csv', 'a') as f:
-                    target_data.to_csv(f, header=False)
-
-            # tarin all
-            # test only without living empty vectors
-
+                for fold in range(0,folds):
+                    print('----splitting fold {}:'.format(str(fold)))
+                    train, test = train_test_split(target_data, test_size= test_percent)
+                    touple = [self.get_temp_full_path('SOURCE[' + key_cat + ']') + '_DEST[' + self.target_category_filename + ']' +'_train' + str(fold) + '.csv',
+                                 self.get_temp_full_path('SOURCE[' + key_cat + ']') + '_DEST[' + self.target_category_filename + ']' + '_test' + str(fold) + '.csv']
+                    self.folds_names[key_cat].append(touple)
+                    with open(touple[0], 'a') as f:
+                        source_data.to_csv(f, header=False)
+                        train.to_csv(f, header=False)
+                    with open(touple[1], 'a') as f:
+                        test.to_csv(f, header=False)
             except Exception as e:
                 print('ERROR!!ERROR!!ERROR!!ERROR!!ERROR!!ERROR!!ERROR!! CYCLE SKIPPED')
                 print(str(e))
                 pass
+        self.step +=1
+
+    def train_models_and_genarate_boost_data(self):
+        if self.step != 3:
+            raise "Error in step!"
+        print('2: split_to_train_and_test Started...')
+        self.svd_models = {}
+        reader = Reader(line_format='user item rating timestamp', sep=',')
+        print('--training models:')
+        for key_cat, touples in self.folds_names.items():
+            data = Dataset.load_from_folds(touples, reader=reader)
+            algo = SVD()
+            # Evaluate performances of our algorithm on the dataset.
+            perf = evaluate(algo, data, measures=['RMSE', 'MAE'])
+            print_perf(perf)
+            # test only without leaving empty vectors
 
     def get_temp_full_path(self, filename):
         return os.path.join(self.working_folder + self.temp_folder, filename)

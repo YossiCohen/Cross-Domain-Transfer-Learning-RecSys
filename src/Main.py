@@ -33,6 +33,7 @@ with open(pickleFile, 'wb') as handle:
 
 with open(pickleFile, 'rb') as handle:
     bcd2 = pickle.load(handle)
-bcd.split_to_train_and_test()
+bcd.split_to_train_and_test(folds=10)
+bcd.train_models_and_genarate_boost_data()
 end = time.time()
 print('Total Time:{}'.format(end - start))

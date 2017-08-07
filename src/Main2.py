@@ -26,10 +26,11 @@ start = time.time()
 # bcd = BoostCrossDomain(DATA_ROOT,SOURCE_RATING_FILES_TO_USE, TARGET_RATING_FILE, MINIMUM_X_CATEGORIES_FILENAME)
 # bcd.extract_cross_domain_ratings(2)
 
-pickleFile = os.path.join('C:\\RS\\Amazon\\All\\170802000052', 'bcdSave.pickle')
+pickleFile = os.path.join('C:\\RS\\Amazon\\All\\170807064333', 'bcdSave.pickle')
 
 with open(pickleFile, 'rb') as handle:
     bcd = pickle.load(handle)
-bcd.split_to_train_and_test()
+bcd.split_to_train_and_test(folds=10)
+bcd.train_models_and_genarate_boost_data()
 end = time.time()
 print('Total Time:{}'.format(end - start))
