@@ -15,7 +15,8 @@ from surprise import evaluate, print_perf
 class BoostCrossDomain(object):
     """Enrich target domain with CF generated data from near domains """
 
-    def __init__(self, working_folder, source_categories_filenames, target_category_filename, minimal_x_filename):
+    def __init__(self, working_folder, source_categories_filenames, target_category_filename, minimal_x_filename, overlap_percent = 30,
+                 total_users = 250, total_items = 500, maximum_sparse_percent = 3):
         """Returns a BoostCrossDomain object ready to run"""
 
         self.working_folder = working_folder
@@ -24,9 +25,34 @@ class BoostCrossDomain(object):
         self.minimal_x_filename = os.path.join(self.working_folder, minimal_x_filename)
         self.temp_folder = time.strftime('%y%m%d%H%M%S')
         os.mkdir(working_folder + self.temp_folder)
-        print('0:BoostCrossDomain Initiated successfuly: working_folder={}, target_category_filename={}, minimal_x_filename={}, temp_folder={}'
-              .format(working_folder, target_category_filename, minimal_x_filename, self.temp_folder))
+        print('0:BoostCrossDomain Initiated successfuly: working_folder={}, target_category_filename={}, minimal_x_filename={}, temp_folder={}, overlap_percent={}, total_users={}, total_items={}, maximum_sparse_percent={}, '
+              .format(working_folder, target_category_filename, minimal_x_filename, self.temp_folder, overlap_percent, total_users, total_items, maximum_sparse_percent))
+        self.overlap_percent = overlap_percent
+        self.total_users = total_users
+        self.total_items = total_items
+        self.maximum_sparse_percent = maximum_sparse_percent
         self.step = 0
+
+
+    def generate_crossdomain_rating_files(self, big_table, first_category_filename, second_category_filename, minimal_item_count):
+        if self.step != 1:
+            raise "Error in step!"
+        out_filename = first_category_filename + '_FILTERED_BY_' + second_category_filename
+        with open(self.get_temp_full_path(out_filename), 'w', newline='', encoding='utf8') as filtered_ratings:
+            writer = csv.writer(filtered_ratings, delimiter=',', lineterminator='\n')
+            cat_file = open(os.path.join(self.working_folder, first_category_filename), 'rt')
+            try:
+                cat_file_reader = csv.reader(cat_file)
+                for row in cat_file_reader:
+                    if row[0] in big_table.index:
+                        if big_table.get_value(row[0], first_category_filename) >= minimal_item_count and \
+                                        big_table.get_value(row[0], second_category_filename) >= minimal_item_count:
+                            writer.writerow(row)
+                filtered_ratings.flush()
+            finally:
+                cat_file.close()
+        return out_filename
+
 
     def extract_cross_domain_ratings(self, minimal_item_count):
         if self.step != 0:
@@ -49,26 +75,10 @@ class BoostCrossDomain(object):
             self.category_pair_filenames[category_filename].append(target_cat_file)
         self.step += 1
 
-    def generate_crossdomain_rating_files(self, big_table, first_category_filename, second_category_filename, minimal_item_count):
-        if self.step != 1:
-            raise "Error in step!"
-        out_filename = first_category_filename + '_FILTERED_BY_' + second_category_filename
-        with open(self.get_temp_full_path(out_filename), 'w', newline='', encoding='utf8') as filtered_ratings:
-            writer = csv.writer(filtered_ratings, delimiter=',', lineterminator='\n')
-            cat_file = open(os.path.join(self.working_folder, first_category_filename), 'rt')
-            try:
-                cat_file_reader = csv.reader(cat_file)
-                for row in cat_file_reader:
-                    if row[0] in big_table.index:
-                        if big_table.get_value(row[0], first_category_filename) >= minimal_item_count and \
-                                        big_table.get_value(row[0], second_category_filename) >= minimal_item_count:
-                            writer.writerow(row)
-                filtered_ratings.flush()
-            finally:
-                cat_file.close()
-        return out_filename
-
     def split_to_train_and_test(self, folds = 3):
+        if self.step != 2:
+            raise "Error in step!"
+        print('2: split_to_train_and_test Started...')
         test_percent = 1/folds
         self.folds_names = {}
         for key_cat, common_rating_files in self.category_pair_filenames.items():
@@ -93,22 +103,38 @@ class BoostCrossDomain(object):
                 print('ERROR!!ERROR!!ERROR!!ERROR!!ERROR!!ERROR!!ERROR!! CYCLE SKIPPED')
                 print(str(e))
                 pass
-        self.step +=1
 
-    def train_models_and_genarate_boost_data(self):
+        self.step += 1
+
+
+    def train_models(self):
         if self.step != 3:
             raise "Error in step!"
-        print('2: split_to_train_and_test Started...')
+        print('3: train_models Started...')
         self.svd_models = {}
         reader = Reader(line_format='user item rating timestamp', sep=',')
-        print('--training models:')
         for key_cat, touples in self.folds_names.items():
+            print('--Category:{}'.format(key_cat))
             data = Dataset.load_from_folds(touples, reader=reader)
             algo = SVD()
             # Evaluate performances of our algorithm on the dataset.
             perf = evaluate(algo, data, measures=['RMSE', 'MAE'])
             print_perf(perf)
-            # test only without leaving empty vectors
+            self.svd_models[key_cat] = algo
+
+        self.step += 1
+
+    def generate_boosted_ratings(self):
+        if self.step != 4:
+            raise "Error in step!"
+        print('4: generate_boosted_ratings Started...')
+        for key_cat, model in self.svd_models.items():
+            target_filtered_filename = self.category_pair_filenames[key_cat][1]
+            a = 3
+
+
 
     def get_temp_full_path(self, filename):
         return os.path.join(self.working_folder + self.temp_folder, filename)
+
+

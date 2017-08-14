@@ -2,7 +2,7 @@
 import csv
 import os
 # Load all CSV files into one big summary table with users and number of items per category
-MINIMAL_RATING_THRESHOLD = 30
+MINIMAL_RATING_THRESHOLD = 3
 SOURCE_DATA_ROOT = "C:\\RS\\Amazon\\All\\"
 DESTINATION_DATA_ROOT = SOURCE_DATA_ROOT + "MINIMAL_THRESHOLD_" + str (MINIMAL_RATING_THRESHOLD)
 from collections import defaultdict
