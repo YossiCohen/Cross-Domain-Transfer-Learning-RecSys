@@ -14,8 +14,8 @@ DATA_ROOT = "C:\\RS\\Amazon\\Tresholds\\MINIMAL_THRESHOLD_30\\"
 # TARGET_RATING_FILE = 'ratings_Musical_Instruments_SML.csv'
 #Mini example
 MINIMUM_X_CATEGORIES_FILENAME = 'minimum_2_Categories.csv'
-SOURCE_RATING_FILE = 'ratings_Digital_Music_MinRatings30_OrgU478235_OrgI266414_AftrU848_AftrI29750_Ratings52707.csv'
-TARGET_RATING_FILE = 'ratings_Musical_Instruments_MinRatings30_OrgU339231_OrgI83046_AftrU172_AftrI8028_Ratings9935.csv'
+SOURCE_RATING_FILE = 'ratings_CDs_and_Vinyl_MinRatings30_OrgU1578597_OrgI486360_AftrU8898_AftrI265746_Ratings805758.csv'
+TARGET_RATING_FILE = 'ratings_Movies_and_TV_MinRatings30_OrgU2088620_OrgI200941_AftrU8929_AftrI107066_Ratings782939.csv'
 
 
 def from_start():
@@ -28,9 +28,9 @@ def from_start():
         pickle.dump(rmgm_boost, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 def from_middle():
-    with open(os.path.join('C:\\RS\\Amazon\\Tresholds\\MINIMAL_THRESHOLD_30\\170814193629', 'rmgm_boost_save.pickle'), 'rb') as handle:
+    with open(os.path.join('C:\\RS\\Amazon\\Tresholds\\MINIMAL_THRESHOLD_30\\170815155449', 'rmgm_boost_save.pickle'), 'rb') as handle:
         rmgm_boost2 = pickle.load(handle)
-        rmgm_boost2.remove_items_from_samples()
+        rmgm_boost2.generate_fold()
 
 
 timestamp = time.strftime('%y%m%d%H%M%S')

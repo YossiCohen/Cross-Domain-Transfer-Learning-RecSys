@@ -1,6 +1,7 @@
 ""
 import csv
 import os
+import random
 import time
 import pandas as pd
 from shutil import copyfile
@@ -14,6 +15,8 @@ from surprise import evaluate, print_perf
 
 FULL_TARGET_DATA_MATRIX = "full_target_data_matrix.csv"
 FULL_SOURCE_DATA_MATRIX = "full_source_data_matrix.csv"
+FILTERED_TARGET_DATA_MATRIX = "filtered_target_data_matrix.csv"
+FILTERED_SOURCE_DATA_MATRIX = "filtered_source_data_matrix.csv"
 FULL_TARGET_DATA_MATRIX_OVERLAP = "full_target_data_matrix_overlap.csv"
 FULL_SOURCE_DATA_MATRIX_OVERLAP = "full_source_data_matrix_overlap.csv"
 FULL_TARGET_DATA_MATRIX_NONOVERLAP = "full_target_data_matrix_nonoverlap.csv"
@@ -27,17 +30,9 @@ MINI_SOURCE_DOMAIN = "mini_source_domain.csv"
 
 class RMGM_Boost(object):
     """Enrich target domain with CF generated data from near domains """
-    MINI_TARGET_FILENAME = "mini_target"
-    MINI_SOURCE_FILENAME = "mini_source"
-    OVERLAP = "_overlap"
-    NON_OVERLAP = "_nonoverlap"
-
-
-
-
 
     def __init__(self, working_folder, source_domain_filename, target_domain_filename, minimal_x_filename,
-                 target_overlap_percent=0.15, users_count=100, items_count=500, maximum_sparse_percent=0.03, folds=5,
+                 target_overlap_percent=0.20, users_count=500, items_count=1000, maximum_sparse_percent=0.03, folds=5,
                  boosting_rate=0.5):
         """Returns a RMGM_Boost object ready to run"""
         self.working_folder = working_folder
@@ -49,6 +44,7 @@ class RMGM_Boost(object):
         self.target_overlap_percent = target_overlap_percent
         self.users_count = users_count
         self.items_count = items_count
+        self.double_items_count = items_count * 2
         self.maximum_sparse_percent = maximum_sparse_percent
         self.folds = folds
         self.boosting_rate = boosting_rate
@@ -108,27 +104,172 @@ class RMGM_Boost(object):
         self.overlap_target_filename = self.generate_overlap_rating_files(big_table, self.target_domain_filename,
                                                                  self.source_domain_filename, minimal_item_count_for_user)
 
-
-    def generate_mini_domains(self, minimal_item_count_for_user=4):
+    def generate_mini_domains(self, minimal_item_count_for_user=2):
         if self.step != 0:
             raise "Error in step!"
         self.step += 1
         self.extract_cross_domain_ratings(minimal_item_count_for_user)
-        self.generate_overlapping_users_file()
-        self.generate_nonoverlapping_users_file()
-        self.remove_items_from_samples()
+        self.handle_overlapping_data(minimal_item_count_for_user)
+        self.handle_nonoverlapping_data()
+        self.merge_overlapping_and_nonoverlapping()
+
+        # #OLD IMPL
+        # self.generate_overlapping_users_file()
+        # self.generate_nonoverlapping_users_file()
+        # self.remove_items_from_samples()
         self.step += 1
 
-    def pivot_rating_list_to_matrix_file(self, list_filename, matrix_filename):
+    def handle_overlapping_data(self, minimal_items_per_user):
+        # Load overlapping rating list from source
+        source_list_data = pd.read_csv(self.get_temp_full_path(self.overlap_source_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0,1,2])
+        source_list_data[['Rating']] = source_list_data[['Rating']].astype(int)
+        # Load overlapping rating list from target
+        target_list_data = pd.read_csv(self.get_temp_full_path(self.overlap_target_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0,1,2])
+        target_list_data[['Rating']] = target_list_data[['Rating']].astype(int)
+
+        # Get all distinct users
+        all_distinct_overlapping_users = set(source_list_data['User'])
+        loop_counter = 0
+        while True: #because of the randomallity - we should try this some times
+            loop_counter += 1
+            print("handle_overlapping_data - try no.{}".format(str(loop_counter)))
+
+            # Randomly select the sampled users
+            self.sampled_overlapping_users = random.sample(all_distinct_overlapping_users, self.number_of_overlapping_users)
+            # Remove non-sampled users
+            source_items_filter_needed_sampled_list = source_list_data.loc[source_list_data['User'].isin(self.sampled_overlapping_users)]
+            target_items_filter_needed_sampled_list = target_list_data.loc[target_list_data['User'].isin(self.sampled_overlapping_users)]
+
+            print('---Sampled Source List:')
+            target_items_filter_needed_sampled_list.info()
+            print('---Sampled Target List:')
+            target_items_filter_needed_sampled_list.info()
+
+
+            # Keep the relevant Items for target
+            # self.sampled_target_items = set(target_sampled_list['Item'])
+
+            # minimum values checking
+            #Pivot the source
+            source_data_matrix = source_items_filter_needed_sampled_list.pivot_table(index=['User'], columns=['Item'], values=['Rating'])
+            # fix structure - remove one dimention from the pivot - many Rating column headers
+            source_data_matrix.columns = source_data_matrix.columns.get_level_values(1)
+            #choosing the most popular items (twice - needed to keep dimentions OK)
+            source_item_count = source_data_matrix.count()
+            source_item_count = source_item_count[source_item_count >= minimal_items_per_user]
+            if len(source_item_count) < self.double_items_count:
+                print('Not enough source items - Try again...')
+                continue
+            # Now same for the target
+            target_data_matrix = target_items_filter_needed_sampled_list.pivot_table(index=['User'], columns=['Item'], values=['Rating'])
+            # fix structure - remove one dimention from the pivot - many Rating column headers
+            target_data_matrix.columns = target_data_matrix.columns.get_level_values(1)
+            #choosing the most popular items (twice - needed to keep dimentions OK)
+            target_item_count = target_data_matrix.count()
+            target_item_count = target_item_count[target_item_count >= minimal_items_per_user]
+            if len(target_item_count) < self.double_items_count:
+                print('Not enough target items - Try again...')
+                continue
+
+            source_item_count.sort_values(inplace=True)
+            source_items_filter = source_item_count.tail(self.double_items_count)
+            target_item_count.sort_values(inplace=True)
+            target_items_filter = target_item_count.tail(self.double_items_count)
+
+            self.sampled_source_items = set(source_items_filter.index)
+            self.sampled_target_items = set(target_items_filter.index)
+
+            sampled_source_overlapping = source_data_matrix[list(self.sampled_source_items)]
+            sampled_target_overlapping = target_data_matrix[list(self.sampled_target_items)]
+            sampled_source_overlapping = sampled_source_overlapping.sort_index(axis=0)
+            sampled_target_overlapping = sampled_target_overlapping.sort_index(axis=0)
+            sampled_source_overlapping = sampled_source_overlapping.sort_index(axis=1)
+            sampled_target_overlapping = sampled_target_overlapping.sort_index(axis=1)
+            with open(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_OVERLAP), 'w') as f:
+                sampled_source_overlapping.to_csv(f)
+            with open(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP), 'w') as f:
+                sampled_target_overlapping.to_csv(f)
+            break
+        pass
+
+    def handle_nonoverlapping_data(self):
+        # Load rating list from source
+        source_list_data = pd.read_csv(self.get_temp_full_path(self.source_domain_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0,1,2])
+        source_list_data[['Rating']] = source_list_data[['Rating']].astype(int)
+        # Remove non-sampled items
+        source_filtered_by_items_list = source_list_data.loc[source_list_data['Item'].isin(self.sampled_source_items)]
+        # Get all users left that have those items
+        all_distinct_source_overlapping_users = set(source_filtered_by_items_list['User'])
+        # Randomly select the sampled users
+        sampled_source_nonoverlapping_users = random.sample(all_distinct_source_overlapping_users, self.number_of_nonoverlapping_users)
+        # Remove non-sampled users
+        source_sampled_list = source_filtered_by_items_list.loc[source_filtered_by_items_list['User'].isin(sampled_source_nonoverlapping_users)]
+
+        # Load rating list from target
+        target_list_data = pd.read_csv(self.get_temp_full_path(self.target_domain_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0,1,2])
+        target_list_data[['Rating']] = target_list_data[['Rating']].astype(int)
+        # Remove non-sampled items
+        target_filtered_by_items_list = target_list_data.loc[target_list_data['Item'].isin(self.sampled_target_items)]
+        # Get all users left that have those items
+        all_distinct_target_overlapping_users = set(target_filtered_by_items_list['User'])
+        # Randomly select the sampled users
+        sampled_target_nonoverlapping_users = random.sample(all_distinct_target_overlapping_users, self.number_of_nonoverlapping_users)
+        # Remove non-sampled users
+        target_sampled_list = target_filtered_by_items_list.loc[target_filtered_by_items_list['User'].isin(sampled_target_nonoverlapping_users)]
+
+        print('---Sampled Source List:')
+        source_sampled_list.info()
+        print('---Sampled Target List:')
+        target_sampled_list.info()
+
+        #same as pivot
+        data_matrix = source_sampled_list.pivot_table(index=['User'], columns=['Item'], values=['Rating'])
+        # fix structure - remove one dimention from the pivot - many Rating column headers
+        data_matrix.columns = data_matrix.columns.get_level_values(1)
+        data_matrix = data_matrix.sort_index(axis=0)
+        data_matrix = data_matrix.sort_index(axis=1)
+        with open(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP), 'w') as f:
+            data_matrix.to_csv(f)
+
+        data_matrix = target_sampled_list.pivot_table(index=['User'], columns=['Item'], values=['Rating'])
+        # fix structure - remove one dimention from the pivot - many Rating column headers
+        data_matrix.columns = data_matrix.columns.get_level_values(1)
+        data_matrix = data_matrix.sort_index(axis=0)
+        data_matrix = data_matrix.sort_index(axis=1)
+        with open(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP), 'w') as f:
+            data_matrix.to_csv(f)
+        pass
+
+    def merge_overlapping_and_nonoverlapping(self):
+        #handle source
+        sampled_source_nonoverlap = pd.read_csv(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP), index_col=0)
+        sampled_source_overlap = pd.read_csv(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_OVERLAP), index_col=0)
+        mini_source_domain = pd.concat([sampled_source_nonoverlap, sampled_source_overlap]).sample(self.items_count, axis = 1)
+        mini_source_domain = mini_source_domain.sort_index(axis=0)
+        mini_source_domain = mini_source_domain.sort_index(axis=1)
+        with open(self.get_temp_full_path(MINI_SOURCE_DOMAIN), 'w') as f:
+            mini_source_domain.to_csv(f)
+
+        sampled_target_nonoverlap = pd.read_csv(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP), index_col=0)
+        sampled_target_overlap = pd.read_csv(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP), index_col=0)
+        mini_target_domain = pd.concat([sampled_target_nonoverlap, sampled_target_overlap]).sample(self.items_count, axis=1)
+        mini_target_domain = mini_target_domain.sort_index(axis=0)
+        mini_target_domain = mini_target_domain.sort_index(axis=1)
+        with open(self.get_temp_full_path(MINI_TARGET_DOMAIN), 'w') as f:
+            mini_target_domain.to_csv(f)
+
+
+
+    def pivot_rating_list_to_matrix_file(self, list_filename, matrix_filename, minimum_items_per_column = 2):
         list_data = pd.read_csv(list_filename, header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0,1,2])
         list_data[['Rating']] = list_data[['Rating']].astype(int)
-        print('------FILENAME:'.format(list_filename))
+        print('------FILENAME:{}'.format(list_filename))
         list_data.info()
         data_matrix = list_data.pivot_table(index=['User'], columns=['Item'], values=['Rating'])
 
         # fix structure - remove one dimention from the pivot - many Rating column headers
         data_matrix.columns = data_matrix.columns.get_level_values(1)
-
+        data_matrix.dropna(thresh=minimum_items_per_column, axis=1, inplace=True)
         with open(matrix_filename, 'w') as f:
             data_matrix.to_csv(f)
         return data_matrix
@@ -138,22 +279,26 @@ class RMGM_Boost(object):
         temp = data_matrix.sample(n=number_of_users_to_sample)
         #this will remove empty columns
         temp = temp.dropna(axis=1, how='all')
-        #now we have users with no empry columns - lets sample items
+        #now we have users with no empty columns - lets sample items
         temp = temp.sample(n=self.items_count, axis=1)
         with open(sample_matrix_filename, 'w') as f:
             temp.to_csv(f)
         return temp
 
     def generate_overlapping_users_file(self):
+
         source_data = self.pivot_rating_list_to_matrix_file(self.get_temp_full_path(self.overlap_source_filename),
                                                             self.get_temp_full_path(FULL_SOURCE_DATA_MATRIX_OVERLAP))
-        self.overlapping_users = list(source_data.index.values)
         target_data = self.pivot_rating_list_to_matrix_file(self.get_temp_full_path(self.overlap_target_filename),
                                                             self.get_temp_full_path(FULL_TARGET_DATA_MATRIX_OVERLAP))
-        self.sample_data_matrix_to_file(source_data, self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_OVERLAP),
+        self.overlapping_users = list(source_data.index.values)
+
+        source_sample = self.sample_data_matrix_to_file(source_data, self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_OVERLAP),
                                         self.number_of_overlapping_users)
-        self.sample_data_matrix_to_file(target_data, self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP),
+        target_sample = self.sample_data_matrix_to_file(target_data, self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP),
                                         self.number_of_overlapping_users)
+        self.overlapping_source_items = list(source_sample.columns.values)
+        self.overlapping_target_items = list(target_sample.columns.values)
         pass
 
     def generate_nonoverlapping_users_file(self):
