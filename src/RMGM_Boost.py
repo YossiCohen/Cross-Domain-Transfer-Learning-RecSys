@@ -5,6 +5,8 @@ import time
 import pandas as pd
 import numpy as np
 from shutil import copyfile
+
+import sys
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 
@@ -24,10 +26,12 @@ FULL_TARGET_DATA_MATRIX_NONOVERLAP = "full_target_data_matrix_nonoverlap.csv"
 FULL_SOURCE_DATA_MATRIX_NONOVERLAP = "full_source_data_matrix_nonoverlap.csv"
 SAMPLED_TARGET_DATA_MATRIX_OVERLAP = "sampled_target_data_matrix_overlap.csv"
 SAMPLED_SOURCE_DATA_MATRIX_OVERLAP = "sampled_source_data_matrix_overlap.csv"
+SAMPLED_TARGET_DATA_LIST_OVERLAP = "sampled_target_data_list_overlap.csv"
+SAMPLED_SOURCE_DATA_LIST_OVERLAP = "sampled_source_data_list_overlap.csv"
 LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_MATRIX_OVERLAP = "learn_svd_params_sampled_target_data_matrix_overlap.csv"
 LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_MATRIX_OVERLAP = "learn_svd_params_sampled_source_data_matrix_overlap.csv"
-LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_MATRIX_OVERLAP_LIST = "learn_svd_params_sampled_target_data_matrix_overlap_list.csv"
-LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_MATRIX_OVERLAP_LIST = "learn_svd_params_sampled_source_data_matrix_overlap_list.csv"
+LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_OVERLAP_LIST = "learn_svd_params_sampled_target_data_overlap_list.csv"
+LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_OVERLAP_LIST = "learn_svd_params_sampled_source_data_overlap_list.csv"
 SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP = "sampled_target_data_matrix_nonoverlap.csv"
 SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP = "sampled_source_data_matrix_nonoverlap.csv"
 MINI_TARGET_DOMAIN = "mini_target_domain.csv"
@@ -41,6 +45,7 @@ MINI_TARGET_DOMAIN_LIST_FOLD = "mini_target_domain_list_fold{}.csv"
 MINI_TARGET_DOMAIN_TRAIN = "mini_target_domain_train{}.csv"
 MINI_TARGET_DOMAIN_TEST = "mini_target_domain_test{}.csv"
 LEARN_SVD_PARAMS = "learn_svd_params{}.csv"
+BOOSTING_SVD_FOR_OVERLAP = "boosting_svd_for_overlap{}.csv"
 
 class RMGM_Boost(object):
     """Enrich target domain with CF generated data from near domains """
@@ -334,6 +339,15 @@ class RMGM_Boost(object):
                 sampled_source_overlapping.to_csv(f)
             with open(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP), 'w') as f:
                 sampled_target_overlapping.to_csv(f)
+
+
+            source_list = sampled_source_overlapping.stack()
+            target_list = sampled_target_overlapping.stack()
+
+            with open(self.get_temp_full_path(SAMPLED_SOURCE_DATA_LIST_OVERLAP), 'w') as f:
+                source_list.to_csv(f)
+            with open(self.get_temp_full_path(SAMPLED_TARGET_DATA_LIST_OVERLAP), 'w') as f:
+                target_list.to_csv(f)
             break
         pass
 
@@ -564,9 +578,35 @@ class RMGM_Boost(object):
         print('6:learn_SVD_parameters Started')
         # Extract data similar to overlap data
         self.extract_overlapping_data_to_learn_SVD_params()
-        folds = self.split_to_train_and_test_for_svd_boosting(LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_MATRIX_OVERLAP_LIST, LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_MATRIX_OVERLAP_LIST, LEARN_SVD_PARAMS)
-        svd = self.train_model(folds)
+        folds = self.split_to_train_and_test_for_svd_boosting(LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_OVERLAP_LIST, LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_OVERLAP_LIST, LEARN_SVD_PARAMS)
+        factors = [20, 30]#[10, 20, 30]
+        epochs = [20]#[10, 20, 30]
+        learning_rates = [0.005]#[0.005, 0.007, 0.01]
+        regularizations = [0.02,0.01]#[0.01, 0.02, 0.05]
+        best_mean_rmse = sys.maxsize
+        for fact in factors:
+            for ep in epochs:
+                for lr in learning_rates:
+                    for reg in regularizations:
+                        svd, performance = self.train_model(folds, fact, ep, lr, reg)
+                        mean_rmse = np.mean(performance['rmse'])
+                        if mean_rmse<best_mean_rmse:
+                            best_mean_rmse = mean_rmse
+                            self.svd_factors = fact
+                            self.svd_epochs = ep
+                            self.svd_learning_rates = lr
+                            self.svd_regularizations = reg
 
+        pass
+
+    def build_SVD_and_generate_boosted_ratings(self):
+        if self.step != 7:
+            raise "Error in step!"
+        self.step += 1
+        print('9:build_SVD_and_generate_boosted_ratings Started')
+        folds = self.split_to_train_and_test_for_svd_boosting(SAMPLED_SOURCE_DATA_LIST_OVERLAP, SAMPLED_TARGET_DATA_LIST_OVERLAP, BOOSTING_SVD_FOR_OVERLAP)
+        svd, performance = self.train_model(folds, self.svd_factors, self.svd_epochs, self.svd_learning_rates, self.svd_regularizations)
+        print_perf(performance)
         pass
 
 
@@ -658,15 +698,15 @@ class RMGM_Boost(object):
             source_list = sampled_source_overlapping.stack()
             target_list = sampled_target_overlapping.stack()
 
-            with open(self.get_temp_full_path(LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_MATRIX_OVERLAP_LIST), 'w') as f:
+            with open(self.get_temp_full_path(LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_OVERLAP_LIST), 'w') as f:
                 source_list.to_csv(f)
-            with open(self.get_temp_full_path(LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_MATRIX_OVERLAP_LIST), 'w') as f:
+            with open(self.get_temp_full_path(LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_OVERLAP_LIST), 'w') as f:
                 target_list.to_csv(f)
             break
         pass
 
     def split_to_train_and_test_for_svd_boosting(self,source,target,split_name):
-        print('2: split_to_train_and_test_for_svd_boosting Started...\n--Source:{}\n--Target:{}'.format(source, target))
+        print('X: split_to_train_and_test_for_svd_boosting Started...\n--Source:{}\n--Target:{}'.format(source, target))
         test_percent = 1 / self.folds
         folds_names = list()
         try:
@@ -688,23 +728,15 @@ class RMGM_Boost(object):
             print(str(e))
         return folds_names
 
-    def train_model(self, folds):
+    def train_model(self, folds, n_factors, n_epochs, learning_rate, regularization):
         print('X: train_models Started...')
         reader = Reader(line_format='user item rating', sep=',')
         data = Dataset.load_from_folds(folds, reader=reader)
-        algo = SVD()
+        algo = SVD(n_factors = n_factors, n_epochs = n_epochs, lr_all = learning_rate, reg_all = regularization)
         # Evaluate performances of our algorithm on the dataset.
         perf = evaluate(algo, data, measures=['RMSE', 'MAE'])
-        print_perf(perf)
-        return algo
-
-    def generate_boosted_ratings(self):
-        if self.step != 4:
-            raise "Error in step!"
-        print('4: generate_boosted_ratings Started...')
-        for key_cat, model in self.svd_models.items():
-            target_filtered_filename = self.category_pair_filenames[key_cat][1]
-            a = 3
+        # print_perf(perf)
+        return algo, perf
 
     def get_temp_full_path(self, filename):
         return os.path.join(self.working_folder + self.temp_folder, filename)

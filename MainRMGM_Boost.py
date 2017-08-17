@@ -26,16 +26,16 @@ def from_start():
     rmgm_boost.extract_cross_domain_ratings()
     rmgm_boost.generate_mini_domains()
     rmgm_boost.generate_folds()
+    rmgm_boost.learn_SVD_parameters()
     pickleFile = rmgm_boost.get_temp_full_path('rmgm_boost_save.pickle')
     with open(pickleFile, 'wb') as handle:
         pickle.dump(rmgm_boost, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    rmgm_boost.learn_SVD_parameters()
+    rmgm_boost.build_SVD_and_generate_boosted_ratings()
 
 def from_middle_dev():
-    with open(os.path.join('C:\\RS\\Amazon\\Tresholds\\MINIMAL_THRESHOLD_30\\170817230454', 'rmgm_boost_save.pickle'), 'rb') as handle:
+    with open(os.path.join('C:\\RS\\Amazon\\Tresholds\\MINIMAL_THRESHOLD_30\\170818010805-S-_CDs_and_Vinyl_-D-_Movies_and_TV_', 'rmgm_boost_save.pickle'), 'rb') as handle:
         rmgm_boost2 = pickle.load(handle)
-        # rmgm_boost2.generate_folds()
-        rmgm_boost2.learn_SVD_parameters()
+        rmgm_boost2.build_SVD_and_generate_boosted_ratings()
 
 
 
