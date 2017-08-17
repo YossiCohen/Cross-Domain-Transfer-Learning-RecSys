@@ -22,7 +22,7 @@ SOURCE_RATING_FILE = 'ratings_CDs_and_Vinyl_MinRatings30_OrgU1578597_OrgI486360_
 TARGET_RATING_FILE = 'ratings_Movies_and_TV_MinRatings30_OrgU2088620_OrgI200941_AftrU8929_AftrI107066_Ratings782939.csv'
 
 def from_start():
-    rmgm_boost = RMGM_Boost(DATA_ROOT, SOURCE_RATING_FILE, TARGET_RATING_FILE, MINIMUM_X_CATEGORIES_FILENAME, folds=10, users_count=150, items_count=200)
+    rmgm_boost = RMGM_Boost(DATA_ROOT, SOURCE_RATING_FILE, TARGET_RATING_FILE, MINIMUM_X_CATEGORIES_FILENAME, folds=5, users_count=150, items_count=200)
     rmgm_boost.extract_cross_domain_ratings()
     rmgm_boost.generate_mini_domains()
     rmgm_boost.generate_folds()
@@ -41,7 +41,7 @@ def from_middle_dev():
 
 timestamp = time.strftime('%y%m%d%H%M%S')
 start = time.time()
-# from_start()
-from_middle_dev()
+from_start()
+# from_middle_dev()
 end = time.time()
 print('Total Time:{}'.format(end - start))

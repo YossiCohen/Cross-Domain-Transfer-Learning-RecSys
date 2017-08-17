@@ -46,14 +46,16 @@ class RMGM_Boost(object):
     """Enrich target domain with CF generated data from near domains """
 
     def __init__(self, working_folder, source_domain_filename, target_domain_filename, minimal_x_filename,
-                 target_overlap_percent=0.30, users_count=250, items_count=500, folds=10,
+                 target_overlap_percent=0.30, users_count=250, items_count=500, folds=5,
                  boosting_rate=0.5):
         """Returns a RMGM_Boost object ready to run"""
         self.working_folder = working_folder
-        self.source_domain_filename = 'source-' + source_domain_filename
-        self.target_domain_filename = 'target-' + target_domain_filename
+        self.source_domain_filename = source_domain_filename
+        self.target_domain_filename = target_domain_filename
         self.minimal_x_filename = os.path.join(self.working_folder, minimal_x_filename)
-        self.temp_folder = time.strftime('%y%m%d%H%M%S')
+        self.temp_folder = "{}-S-{}-D-{}".format(time.strftime('%y%m%d%H%M%S'),
+                                                 self.find_between(source_domain_filename, 'ratings', 'Min'),
+                                                 self.find_between(target_domain_filename, 'ratings', 'Min'))
         os.mkdir(working_folder + self.temp_folder)
         self.target_overlap_percent = target_overlap_percent
         self.users_count = users_count
@@ -64,8 +66,8 @@ class RMGM_Boost(object):
         self.number_of_overlapping_users = int(self.users_count * self.target_overlap_percent)
         self.number_of_nonoverlapping_users = self.users_count - self.number_of_overlapping_users
         #copy input files to temp folder - just for convinient
-        copyfile(os.path.join(self.working_folder, source_domain_filename), self.get_temp_full_path( self.source_domain_filename))
-        copyfile(os.path.join(self.working_folder, target_domain_filename), self.get_temp_full_path( self.target_domain_filename))
+        # copyfile(os.path.join(self.working_folder, source_domain_filename), self.get_temp_full_path( self.source_domain_filename))
+        # copyfile(os.path.join(self.working_folder, target_domain_filename), self.get_temp_full_path( self.target_domain_filename))
         self.step = 0
         self.string_of_params = '0:RMGM_Boost Initiated successfully: \nworking_folder={} \nsource_category_filename={} ' \
                                 '\ntarget_category_filename={} \nminimal_x_filename={} \ntemp_folder={} \ntarget_overlap_percent={}' \
@@ -87,17 +89,17 @@ class RMGM_Boost(object):
         if self.step != 1:
             raise "Error in step!"
         #the [:6] is an ugly hack to substring source and target (both 6 characters)
-        out_filename = first_category_filename[:6] + '_FILTERED_BY_' + second_category_filename[:6] +'.csv'
+        out_filename = self.find_between(first_category_filename, 'ratings', 'Min') + '_FILTERED_BY_' + self.find_between(second_category_filename, 'ratings', 'Min') +'.csv'
         with open(self.get_temp_full_path(out_filename), 'w', newline='', encoding='utf8') as filtered_ratings:
             writer = csv.writer(filtered_ratings, delimiter=',', lineterminator='\n')
-            cat_file = open(self.get_temp_full_path(first_category_filename), 'rt')
+            cat_file = open(os.path.join(self.working_folder, first_category_filename), 'rt')
             try:
                 cat_file_reader = csv.reader(cat_file)
                 for row in cat_file_reader:
                     if row[0] in big_table.index:
                         # The [7:] is hack to remove the source/target prefix
-                        if big_table.get_value(row[0], first_category_filename[7:]) >= minimal_item_count and \
-                                        big_table.get_value(row[0], second_category_filename[7:]) >= minimal_item_count:
+                        if big_table.get_value(row[0], first_category_filename) >= minimal_item_count and \
+                                        big_table.get_value(row[0], second_category_filename) >= minimal_item_count:
                             writer.writerow(row)
                 filtered_ratings.flush()
             finally:
@@ -111,7 +113,7 @@ class RMGM_Boost(object):
         print('1:Extract_cross_domain_ratings Started... (minimal_item_count_for_user = {})'.format(minimal_item_count_for_user))
         # The [7:] is hack to remove the source/target prefix
         big_table = pd.read_csv(self.minimal_x_filename, index_col=['user_id'],
-                                usecols=['user_id', self.source_domain_filename[7:], self.target_domain_filename[7:]])
+                                usecols=['user_id', self.source_domain_filename, self.target_domain_filename])
 
         self.overlap_source_filename = self.generate_overlap_rating_files(big_table, self.source_domain_filename,
                                                                  self.target_domain_filename, minimal_item_count_for_user)
@@ -217,7 +219,7 @@ class RMGM_Boost(object):
 
             # Load rating list from source
             print('--------source nonoverlap...')
-            nonoverlap_source_list_data = pd.read_csv(self.get_temp_full_path(self.source_domain_filename), header=None,
+            nonoverlap_source_list_data = pd.read_csv(os.path.join(self.working_folder, self.source_domain_filename), header=None,
                                                       index_col=None, names=["User", "Item", "Rating"],
                                                       usecols=[0, 1, 2])
             nonoverlap_source_list_data[['Rating']] = nonoverlap_source_list_data[['Rating']].astype(int)
@@ -244,7 +246,7 @@ class RMGM_Boost(object):
 
             # Load rating list from target
             print('--------target nonoverlap...')
-            nonoverlap_target_list_data = pd.read_csv(self.get_temp_full_path(self.target_domain_filename), header=None,
+            nonoverlap_target_list_data = pd.read_csv(os.path.join(self.working_folder, self.target_domain_filename), header=None,
                                                       index_col=None, names=["User", "Item", "Rating"],
                                                       usecols=[0, 1, 2])
             nonoverlap_target_list_data[['Rating']] = nonoverlap_target_list_data[['Rating']].astype(int)
@@ -706,6 +708,14 @@ class RMGM_Boost(object):
 
     def get_temp_full_path(self, filename):
         return os.path.join(self.working_folder + self.temp_folder, filename)
+
+    def find_between(self, s, first, last):
+        try:
+            start = s.index(first) + len(first)
+            end = s.index(last, start)
+            return s[start:end]
+        except ValueError:
+            return ""
 
 # def pivot_rating_list_to_matrix_file(self, list_filename, matrix_filename, minimum_items_per_column = 2):
 #     list_data = pd.read_csv(list_filename, header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0,1,2])
