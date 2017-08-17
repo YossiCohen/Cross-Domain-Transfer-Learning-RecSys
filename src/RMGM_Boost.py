@@ -1,4 +1,3 @@
-""
 import csv
 import os
 import random
@@ -29,14 +28,18 @@ SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP = "sampled_target_data_matrix_nonoverlap.c
 SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP = "sampled_source_data_matrix_nonoverlap.csv"
 MINI_TARGET_DOMAIN = "mini_target_domain.csv"
 MINI_SOURCE_DOMAIN = "mini_source_domain.csv"
+MINI_TARGET_DOMAIN_LIST = "mini_target_domain_list.csv"
+MINI_SOURCE_DOMAIN_LIST = "mini_source_domain_list.csv"
 MINI_SOURCE_DOMAIN_FOLD = "mini_source_domain_fold{}.csv"
 MINI_TARGET_DOMAIN_FOLD = "mini_target_domain_fold{}.csv"
+MINI_SOURCE_DOMAIN_LIST_FOLD = "mini_source_domain_list_fold{}.csv"
+MINI_TARGET_DOMAIN_LIST_FOLD = "mini_target_domain_list_fold{}.csv"
 
 class RMGM_Boost(object):
     """Enrich target domain with CF generated data from near domains """
 
     def __init__(self, working_folder, source_domain_filename, target_domain_filename, minimal_x_filename,
-                 target_overlap_percent=0.20, users_count=500, items_count=1000, maximum_sparse_percent=0.03, folds=10,
+                 target_overlap_percent=0.30, users_count=250, items_count=500, folds=10,
                  boosting_rate=0.5):
         """Returns a RMGM_Boost object ready to run"""
         self.working_folder = working_folder
@@ -49,7 +52,6 @@ class RMGM_Boost(object):
         self.users_count = users_count
         self.items_count = items_count
         self.double_items_count = items_count * 2
-        self.maximum_sparse_percent = maximum_sparse_percent
         self.folds = folds
         self.boosting_rate = boosting_rate
         self.number_of_overlapping_users = int(self.users_count * self.target_overlap_percent)
@@ -58,9 +60,9 @@ class RMGM_Boost(object):
         copyfile(os.path.join(self.working_folder, source_domain_filename), self.get_temp_full_path( self.source_domain_filename))
         copyfile(os.path.join(self.working_folder, target_domain_filename), self.get_temp_full_path( self.target_domain_filename))
         self.step = 0
-        print('0:RMGM_Boost Initiated successfully: \nworking_folder={} \nsource_category_filename={}'
-              '\ntarget_category_filename={} \nminimal_x_filename={} \ntemp_folder={} \ntarget_overlap_percent={}'
-              '\nusers_count={} \nitems_count={} \nmaximum_sparse_percent={} \nfolds={} \nboosting_rate={}'.format(
+        self.string_of_params = '0:RMGM_Boost Initiated successfully: \nworking_folder={} \nsource_category_filename={} ' \
+                                '\ntarget_category_filename={} \nminimal_x_filename={} \ntemp_folder={} \ntarget_overlap_percent={}' \
+                                '\nusers_count={} \nitems_count={} \nfolds={} \nboosting_rate={}'.format(
             self.working_folder,
             self.source_domain_filename,
             self.target_domain_filename,
@@ -69,9 +71,9 @@ class RMGM_Boost(object):
             self.target_overlap_percent,
             self.users_count,
             self.items_count,
-            self.maximum_sparse_percent,
             self.folds,
-            self.boosting_rate))
+            self.boosting_rate)
+        print(self.string_of_params)
 
     def generate_overlap_rating_files(self, big_table, first_category_filename, second_category_filename,
                                           minimal_item_count):
@@ -95,9 +97,10 @@ class RMGM_Boost(object):
                 cat_file.close()
         return out_filename
 
-    def extract_cross_domain_ratings(self, minimal_item_count_for_user):
-        if self.step != 1:
+    def extract_cross_domain_ratings(self, minimal_item_count_for_user = 2):
+        if self.step != 0:
             raise "Error in step!"
+        self.step += 1
         print('1:Extract_cross_domain_ratings Started... (minimal_item_count_for_user = {})'.format(minimal_item_count_for_user))
         # The [7:] is hack to remove the source/target prefix
         big_table = pd.read_csv(self.minimal_x_filename, index_col=['user_id'],
@@ -108,14 +111,15 @@ class RMGM_Boost(object):
         self.overlap_target_filename = self.generate_overlap_rating_files(big_table, self.target_domain_filename,
                                                                  self.source_domain_filename, minimal_item_count_for_user)
 
-    def generate_mini_domains(self, minimal_item_count_for_user=2):
-        if self.step != 0:
+
+    def generate_mini_domains(self, minimal_ratings_per_item=2):
+        if self.step != 1:
             raise "Error in step!"
         self.step += 1
-        self.extract_cross_domain_ratings(minimal_item_count_for_user)
-        self.handle_overlapping_and_nonoverlapping_data(minimal_item_count_for_user)
-        # self.handle_nonoverlapping_data()
+        self.handle_overlapping_and_nonoverlapping_data(minimal_ratings_per_item)
         self.merge_overlapping_and_nonoverlapping()
+
+        # self.handle_nonoverlapping_data()
 
         # #OLD IMPL
         # self.generate_overlapping_users_file()
@@ -124,7 +128,7 @@ class RMGM_Boost(object):
         self.step += 1
 
     def handle_overlapping_and_nonoverlapping_data(self, minimal_ratings_per_item):
-        if self.step != 1:
+        if self.step != 2:
             raise "Error in step!"
         self.step += 1
         print('1:handle_overlapping_and_nonoverlapping_data Started (wish me luck it can take ages)... (minimal_ratings_per_item = {})'.format(minimal_ratings_per_item))
@@ -142,8 +146,20 @@ class RMGM_Boost(object):
             loop_counter += 1
             print("---handle_overlapping_and_nonoverlapping_data - try no.{}".format(str(loop_counter)))
 
-            # Randomly select the sampled users
-            self.sampled_overlapping_users = random.sample(all_distinct_overlapping_users, self.number_of_overlapping_users)
+
+            # Randomly select the sampled users - too sparse, instead, we choose from top N users see below  :(
+            # self.sampled_overlapping_users = random.sample(all_distinct_overlapping_users, self.number_of_overlapping_users)
+
+            # Select overlapping users with most Items possible
+            overlap_target_users_rating_count = overlap_target_list_data.groupby('User').Rating.count()
+            # overlap_target_users_rating_count.sort_values(ascending=False, inplace=True)
+            overlap_source_users_rating_count = overlap_source_list_data.groupby('User').Rating.count()
+            # overlap_source_users_rating_count.sort_values(ascending=False, inplace=True)
+            overlap_both_average = (overlap_source_users_rating_count + overlap_target_users_rating_count)/2
+            overlap_both_average.sort_values(ascending=False, inplace=True)
+            self.sampled_overlapping_users = set(overlap_both_average.index[:(self.number_of_overlapping_users*10)])
+            self.sampled_overlapping_users = random.sample(self.sampled_overlapping_users, self.number_of_overlapping_users)
+
             # Remove non-sampled users
             overlap_source_items_filter_needed_sampled_list = overlap_source_list_data.loc[overlap_source_list_data['User'].isin(self.sampled_overlapping_users)]
             overlap_target_items_filter_needed_sampled_list = overlap_target_list_data.loc[overlap_target_list_data['User'].isin(self.sampled_overlapping_users)]
@@ -155,6 +171,7 @@ class RMGM_Boost(object):
 
             # minimum values checking
             #Pivot the source overlap
+            print('--------source overlap...')
             overlap_source_data_matrix = overlap_source_items_filter_needed_sampled_list.pivot_table(index=['User'], columns=['Item'], values=['Rating'])
             # fix structure - remove one dimention from the pivot - many Rating column headers
             overlap_source_data_matrix.columns = overlap_source_data_matrix.columns.get_level_values(1)
@@ -167,6 +184,7 @@ class RMGM_Boost(object):
                 print('---Not enough source items - Try again...')
                 continue
             # Now same for the target overlap
+            print('--------target overlap...')
             overlap_target_data_matrix = overlap_target_items_filter_needed_sampled_list.pivot_table(index=['User'], columns=['Item'], values=['Rating'])
             # fix structure - remove one dimention from the pivot - many Rating column headers
             overlap_target_data_matrix.columns = overlap_target_data_matrix.columns.get_level_values(1)
@@ -191,6 +209,7 @@ class RMGM_Boost(object):
             # now let's check if the non-overlapping are ok with this selection (and having at least the items we need)
 
             # Load rating list from source
+            print('--------source nonoverlap...')
             nonoverlap_source_list_data = pd.read_csv(self.get_temp_full_path(self.source_domain_filename), header=None,
                                                       index_col=None, names=["User", "Item", "Rating"],
                                                       usecols=[0, 1, 2])
@@ -202,13 +221,22 @@ class RMGM_Boost(object):
             # Get all users left that have those items
             nonoverlap_all_distinct_source_overlapping_users = set(nonoverlap_source_filtered_by_items_list['User'])
             # Randomly select the sampled users
-            sampled_source_nonoverlapping_users = random.sample(nonoverlap_all_distinct_source_overlapping_users,
-                                                                self.number_of_nonoverlapping_users)
+            # sampled_source_nonoverlapping_users = random.sample(nonoverlap_all_distinct_source_overlapping_users,
+            #                                                     self.number_of_nonoverlapping_users)
+
+            # Random is not working for RMGM, too sparse - select users with many ratings
+            nonoverlap_source_users_rating_count = nonoverlap_source_filtered_by_items_list.groupby('User').Rating.count()
+            nonoverlap_source_users_rating_count.sort_values(ascending=False, inplace=True)
+            sampled_source_nonoverlapping_users = set(nonoverlap_source_users_rating_count.index[:(self.number_of_nonoverlapping_users * 10)])
+            sampled_source_nonoverlapping_users = random.sample(sampled_source_nonoverlapping_users, self.number_of_nonoverlapping_users)
+
+
             # Remove non-sampled users
             nonoverlap_source_sampled_list = nonoverlap_source_filtered_by_items_list.loc[
                 nonoverlap_source_filtered_by_items_list['User'].isin(sampled_source_nonoverlapping_users)]
 
             # Load rating list from target
+            print('--------target nonoverlap...')
             nonoverlap_target_list_data = pd.read_csv(self.get_temp_full_path(self.target_domain_filename), header=None,
                                                       index_col=None, names=["User", "Item", "Rating"],
                                                       usecols=[0, 1, 2])
@@ -220,8 +248,15 @@ class RMGM_Boost(object):
             # Get all users left that have those items
             nonoverlap_all_distinct_target_overlapping_users = set(nonoverlap_target_filtered_by_items_list['User'])
             # Randomly select the sampled users
-            sampled_target_nonoverlapping_users = random.sample(nonoverlap_all_distinct_target_overlapping_users,
-                                                                self.number_of_nonoverlapping_users)
+            # sampled_target_nonoverlapping_users = random.sample(nonoverlap_all_distinct_target_overlapping_users,
+            #                                                     self.number_of_nonoverlapping_users)
+
+            # Random is not working for RMGM, too sparse - select users with many ratings
+            nonoverlap_target_users_rating_count = nonoverlap_target_filtered_by_items_list.groupby('User').Rating.count()
+            nonoverlap_target_users_rating_count.sort_values(ascending=False, inplace=True)
+            sampled_target_nonoverlapping_users = set(nonoverlap_target_users_rating_count.index[:(self.number_of_nonoverlapping_users * 10)])
+            sampled_target_nonoverlapping_users = random.sample(sampled_target_nonoverlapping_users, self.number_of_nonoverlapping_users)
+
             # Remove non-sampled users
             nonoverlap_target_sampled_list = nonoverlap_target_filtered_by_items_list.loc[
                 nonoverlap_target_filtered_by_items_list['User'].isin(sampled_target_nonoverlapping_users)]
@@ -342,12 +377,15 @@ class RMGM_Boost(object):
     #     pass
 
     def merge_overlapping_and_nonoverlapping(self):
-        if self.step != 2:
+        if self.step != 3:
             raise "Error in step!"
         self.step += 1
         #handle source
         sampled_source_nonoverlap = pd.read_csv(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP), index_col=0)
         sampled_source_overlap = pd.read_csv(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_OVERLAP), index_col=0)
+        # remove empty lines
+        sampled_source_nonoverlap = sampled_source_nonoverlap.dropna(how='all')
+        sampled_source_overlap = sampled_source_overlap.dropna(how='all')
         mini_source_domain = pd.concat([sampled_source_nonoverlap, sampled_source_overlap]).sample(self.items_count, axis = 1)
         mini_source_domain = mini_source_domain.sort_index(axis=0)
         mini_source_domain = mini_source_domain.sort_index(axis=1)
@@ -356,11 +394,34 @@ class RMGM_Boost(object):
 
         sampled_target_nonoverlap = pd.read_csv(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP), index_col=0)
         sampled_target_overlap = pd.read_csv(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP), index_col=0)
+        #remove empty lines
+        sampled_target_nonoverlap = sampled_target_nonoverlap.dropna(how='all')
+        sampled_target_overlap = sampled_target_overlap.dropna(how='all')
         mini_target_domain = pd.concat([sampled_target_nonoverlap, sampled_target_overlap]).sample(self.items_count, axis=1)
         mini_target_domain = mini_target_domain.sort_index(axis=0)
         mini_target_domain = mini_target_domain.sort_index(axis=1)
         with open(self.get_temp_full_path(MINI_TARGET_DOMAIN), 'w') as f:
             mini_target_domain.to_csv(f)
+
+        source_list = mini_source_domain.stack()
+        target_list = mini_target_domain.stack()
+
+        with open(self.get_temp_full_path(MINI_SOURCE_DOMAIN_LIST), 'w') as f:
+            source_list.to_csv(f)
+        with open(self.get_temp_full_path(MINI_TARGET_DOMAIN_LIST), 'w') as f:
+            target_list.to_csv(f)
+
+        self.mini_matrices_sparse_info = 'Matrices total rating count:\n Source:{}\n Target:{} ' \
+                                         '\nMatrices density (Originally: users X items = {}x{}):\n Source ({}x{}):{}\n Target ({}x{}):{}'.format(
+            mini_source_domain.count().sum(), mini_target_domain.count().sum(), self.users_count,self.items_count,
+            mini_source_domain.shape[0],mini_source_domain.shape[1],
+            mini_source_domain.count().sum() / (self.users_count * self.items_count),
+            mini_target_domain.shape[0], mini_target_domain.shape[1],
+            mini_target_domain.count().sum() / (self.users_count * self.items_count),
+            )
+
+        print(self.mini_matrices_sparse_info)
+
 
 
     def generate_folds(self):
@@ -368,13 +429,15 @@ class RMGM_Boost(object):
         mini_source_domain = pd.read_csv(self.get_temp_full_path(MINI_SOURCE_DOMAIN), index_col=0)
         mini_target_domain = pd.read_csv(self.get_temp_full_path(MINI_TARGET_DOMAIN), index_col=0)
 
-        self.mini_domain_kfold_split_to_files(mini_source_domain, MINI_SOURCE_DOMAIN_FOLD, 'source')
-        self.mini_domain_kfold_split_to_files(mini_target_domain, MINI_TARGET_DOMAIN_FOLD, 'target')
+        #generate folds for rmgm
+        self.mini_domain_kfold_split_to_files(mini_source_domain, MINI_SOURCE_DOMAIN_FOLD, MINI_SOURCE_DOMAIN_LIST_FOLD, 'source')
+        self.mini_domain_kfold_split_to_files(mini_target_domain, MINI_TARGET_DOMAIN_FOLD, MINI_TARGET_DOMAIN_LIST_FOLD, 'target')
+
         pass
 
-    def mini_domain_kfold_split_to_files(self, mini_domain, folds_filename, domain_name):
+    def mini_domain_kfold_split_to_files(self, mini_domain, folds_filename, list_fold_filename, domain_name):
         mini_domain_column_count = mini_domain.count()
-        # try to split to X fold - without dimensions problems
+        # try to split to X fold - without ratings dimensions problems
         split_try = 0
         while True:
             split_try += 1
@@ -383,7 +446,7 @@ class RMGM_Boost(object):
             shuffled_mini_domain = shuffle(mini_domain)
             shuffled_mini_domain.insert(0, 'Split_ID', range(0, len(shuffled_mini_domain)))
             groups = shuffled_mini_domain.groupby(shuffled_mini_domain['Split_ID'] % self.folds)
-
+            groups_b = shuffled_mini_domain.groupby(shuffled_mini_domain['Split_ID'] % self.folds)
             # validate if the folds are OK to be saved - if on fold have same count of item,
             # that means it holds all the items data, we need to reselect
             bad_split_found = False
@@ -402,9 +465,62 @@ class RMGM_Boost(object):
             if bad_split_found:
                 continue
 
+            a = list()
+            b = list()
+
+            #Split are OK, now lets split the splits to two A/B (A=train, B=test), keeping all users
+            #in A and half data in A,B
+            #deep copy them
+            for (fold_number, frame) in groups:
+                frame = frame.drop(['Split_ID'], axis=1)
+                a.append(frame.copy(deep=True))
+                b.append(frame.copy(deep=True))
+
+
+            #alternate values
+            # https://stackoverflow.com/questions/23330654/update-a-dataframe-in-pandas-while-iterating-row-by-row
+            #
+            for a_idx, a_group in enumerate(a):
+                for (user,items) in a_group.iterrows():
+                    count = 1
+                    for (item,rating) in items.items():
+                        if np.math.isnan(rating):
+                            continue
+                        if count % 2 == 0:
+                            a[a_idx].set_value(user, item, None)
+                        count +=1
+
+            for b_idx, b_group in enumerate(b):
+                for (user,items) in b_group.iterrows():
+                    count = 1
+                    for (item,rating) in items.items():
+                        if np.math.isnan(rating):
+                            continue
+                        if count % 2 == 1:
+                            b[b_idx].set_value(user, item, None)
+                        count +=1
+
+            #Save the files
             for (fold_number, frame) in groups:
                 frame = frame.drop(['Split_ID'], axis=1)
                 frame.to_csv(self.get_temp_full_path(folds_filename.format(fold_number)))
+                stacked_frame = frame.stack()
+                with open(self.get_temp_full_path(list_fold_filename.format(fold_number)), 'w') as f:
+                    stacked_frame.to_csv(f)
+
+            for (fold_number, frame) in enumerate(a):
+                frame.to_csv(self.get_temp_full_path(folds_filename.format(str(fold_number)+"A")))
+                stacked_frame = frame.stack()
+                with open(self.get_temp_full_path(list_fold_filename.format(str(fold_number)+"A")), 'w') as f:
+                    stacked_frame.to_csv(f)
+
+            for (fold_number, frame) in enumerate(b):
+                frame.to_csv(self.get_temp_full_path(folds_filename.format(str(fold_number)+"B")))
+                stacked_frame = frame.stack()
+                with open(self.get_temp_full_path(list_fold_filename.format(str(fold_number)+"B")), 'w') as f:
+                    stacked_frame.to_csv(f)
+
+
             break
         pass
 
