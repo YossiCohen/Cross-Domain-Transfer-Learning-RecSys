@@ -36,6 +36,8 @@ SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP = "sampled_target_data_matrix_nonoverlap.c
 SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP = "sampled_source_data_matrix_nonoverlap.csv"
 MINI_TARGET_DOMAIN = "mini_target_domain.csv"
 MINI_SOURCE_DOMAIN = "mini_source_domain.csv"
+BOOSTED_TARGET_MATRIX = "boosted_target_matrix.csv"
+BOOSTED_TARGET_LIST = "boosted_target_list.csv"
 MINI_TARGET_DOMAIN_LIST = "mini_target_domain_list.csv"
 MINI_SOURCE_DOMAIN_LIST = "mini_source_domain_list.csv"
 MINI_SOURCE_DOMAIN_FOLD = "mini_source_domain_fold{}.csv"
@@ -599,14 +601,33 @@ class RMGM_Boost(object):
 
         pass
 
-    def build_SVD_and_generate_boosted_ratings(self):
+    def build_SVD_and_generate_boosted_target_ratings(self):
         if self.step != 7:
             raise "Error in step!"
         self.step += 1
-        print('9:build_SVD_and_generate_boosted_ratings Started')
+        print('7:build_SVD_and_generate_boosted_target_ratings Started')
+        #Train SVD with learned params
         folds = self.split_to_train_and_test_for_svd_boosting(SAMPLED_SOURCE_DATA_LIST_OVERLAP, SAMPLED_TARGET_DATA_LIST_OVERLAP, BOOSTING_SVD_FOR_OVERLAP)
         svd, performance = self.train_model(folds, self.svd_factors, self.svd_epochs, self.svd_learning_rates, self.svd_regularizations)
         print_perf(performance)
+        #load overlaping table to predict empry values
+        sampled_target_overlap = pd.read_csv(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP), index_col=0)
+        # remove empty lines
+        boosted_target_overlap = sampled_target_overlap.dropna(how='all')
+
+        #naively random predict by boosting rate
+        for (user, items) in boosted_target_overlap.iterrows():
+            for (item, rating) in items.items():
+                if np.math.isnan(rating):
+                    if random.uniform(0, 1) < self.boosting_rate:
+                        prediction = svd.predict(user, item)
+                        boosted_target_overlap.set_value(user, item, np.round(prediction.est))
+
+        with open(self.get_temp_full_path(BOOSTED_TARGET_MATRIX), 'w') as f:
+            boosted_target_overlap.to_csv(f)
+        target_list = boosted_target_overlap.stack()
+        with open(self.get_temp_full_path(BOOSTED_TARGET_LIST), 'w') as f:
+            target_list.to_csv(f)
         pass
 
 

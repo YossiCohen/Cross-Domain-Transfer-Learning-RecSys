@@ -30,18 +30,18 @@ def from_start():
     pickleFile = rmgm_boost.get_temp_full_path('rmgm_boost_save.pickle')
     with open(pickleFile, 'wb') as handle:
         pickle.dump(rmgm_boost, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    rmgm_boost.build_SVD_and_generate_boosted_ratings()
+    # rmgm_boost.build_SVD_and_generate_boosted_target_ratings()
 
 def from_middle_dev():
-    with open(os.path.join('C:\\RS\\Amazon\\Tresholds\\MINIMAL_THRESHOLD_30\\170818010805-S-_CDs_and_Vinyl_-D-_Movies_and_TV_', 'rmgm_boost_save.pickle'), 'rb') as handle:
+    with open(os.path.join('C:\\RS\\Amazon\\Tresholds\\MINIMAL_THRESHOLD_30\\170818012910-S-_CDs_and_Vinyl_-D-_Movies_and_TV_', 'rmgm_boost_save.pickle'), 'rb') as handle:
         rmgm_boost2 = pickle.load(handle)
-        rmgm_boost2.build_SVD_and_generate_boosted_ratings()
+        rmgm_boost2.build_SVD_and_generate_boosted_target_ratings()
 
 
 
 timestamp = time.strftime('%y%m%d%H%M%S')
 start = time.time()
-from_start()
-# from_middle_dev()
+# from_start()
+from_middle_dev()
 end = time.time()
 print('Total Time:{}'.format(end - start))
