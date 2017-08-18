@@ -606,10 +606,10 @@ class RMGM_Boost(object):
         # Extract data similar to overlap data
         self.extract_overlapping_data_to_learn_SVD_params()
         folds = self.split_to_train_and_test_for_svd_boosting(LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_OVERLAP_LIST, LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_OVERLAP_LIST, LEARN_SVD_PARAMS)
-        factors = [20, 30]#[10, 20, 30]
-        epochs = [20]#[10, 20, 30]
-        learning_rates = [0.005]#[0.005, 0.007, 0.01]
-        regularizations = [0.02,0.01]#[0.01, 0.02, 0.05]
+        factors = [10, 20, 40]#[10, 20, 30]
+        epochs = [10, 20, 40]#[10, 20, 30]
+        learning_rates = [0.0035, 0.007, 0.014]#[0.005, 0.007, 0.01]
+        regularizations = [0.01, 0.02, 0.04]#[0.01, 0.02, 0.05]
         best_mean_rmse = sys.maxsize
         for fact in factors:
             for ep in epochs:
