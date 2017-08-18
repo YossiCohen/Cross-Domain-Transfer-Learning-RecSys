@@ -4,21 +4,13 @@ import os
 
 from src.RMGM_Boost import RMGM_Boost
 
-# DATA_ROOT = "C:\\RS\\Amazon\\All\\"
 DATA_ROOT = "C:\\RS\\Amazon\\Tresholds\\MINIMAL_THRESHOLD_30\\"
 
 
-#Mini example
-# MINIMUM_X_CATEGORIES_FILENAME = 'minimum_2_196k_SML.csv'
-# SOURCE_RATING_FILE = 'ratings_Digital_Music_SML.csv'
-# TARGET_RATING_FILE = 'ratings_Musical_Instruments_SML.csv'
+
 #Mini example
 MINIMUM_X_CATEGORIES_FILENAME = 'minimum_2_Categories.csv'
-# SOURCE_RATING_FILE = 'ratings_CDs_and_Vinyl_MinRatings30_OrgU1578597_OrgI486360_AftrU8898_AftrI265746_Ratings805758.csv'
-# TARGET_RATING_FILE = 'ratings_Movies_and_TV_MinRatings30_OrgU2088620_OrgI200941_AftrU8929_AftrI107066_Ratings782939.csv'
-#
-# SOURCE_RATING_FILE = 'ratings_Books_MinRatings30_OrgU8026324_OrgI2330066_AftrU59103_AftrI1074981_Ratings5069923.csv'
-SOURCE_RATING_FILE = 'ratings_CDs_and_Vinyl_MinRatings30_OrgU1578597_OrgI486360_AftrU8898_AftrI265746_Ratings805758.csv'
+SOURCE_RATING_FILE = 'ratings_Books_MinRatings30_OrgU8026324_OrgI2330066_AftrU59103_AftrI1074981_Ratings5069923.csv'
 TARGET_RATING_FILE = 'ratings_Movies_and_TV_MinRatings30_OrgU2088620_OrgI200941_AftrU8929_AftrI107066_Ratings782939.csv'
 
 def from_start():

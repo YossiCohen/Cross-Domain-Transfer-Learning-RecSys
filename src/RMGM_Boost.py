@@ -52,6 +52,7 @@ BOOSTING_SVD_FOR_OVERLAP = "boosting_svd_for_overlap{}.csv"
 TEMP_FOLDER = "temp"
 RMGM_FOLDER = "rmgm-folds"
 RMGM_BOOST_FOLDER = "rmgm-boost-folds"
+CROSS_FILTERED = "cross-filtered"
 
 class RMGM_Boost(object):
     """Enrich target domain with CF generated data from near domains """
@@ -65,12 +66,14 @@ class RMGM_Boost(object):
         self.target_domain_filename = target_domain_filename
         self.minimal_x_filename = os.path.join(self.working_folder, minimal_x_filename)
         self.run_folder = "{}-S-{}-D-{}".format(time.strftime('%y%m%d%H%M%S'),
-                                                self.find_between(source_domain_filename, 'ratings', 'Min'),
-                                                self.find_between(target_domain_filename, 'ratings', 'Min'))
+                                                self.find_between(source_domain_filename, 'ratings_', '_Min'),
+                                                self.find_between(target_domain_filename, 'ratings_', '_Min'))
         os.mkdir(working_folder + self.run_folder)
         os.mkdir(os.path.join(self.working_folder, self.run_folder, TEMP_FOLDER))
         os.mkdir(os.path.join(self.working_folder, self.run_folder, RMGM_FOLDER))
         os.mkdir(os.path.join(self.working_folder, self.run_folder, RMGM_BOOST_FOLDER))
+        if not os.path.exists(os.path.join(self.working_folder, CROSS_FILTERED)):
+            os.makedirs(os.path.join(self.working_folder, CROSS_FILTERED))
         self.target_overlap_percent = target_overlap_percent
         self.users_count = users_count
         self.items_count = items_count
@@ -102,16 +105,19 @@ class RMGM_Boost(object):
                                           minimal_item_count):
         if self.step != 1:
             raise "Error in step!"
-        #the [:6] is an ugly hack to substring source and target (both 6 characters)
-        out_filename = self.find_between(first_category_filename, 'ratings', 'Min') + '_FILTERED_BY_' + self.find_between(second_category_filename, 'ratings', 'Min') +'.csv'
-        with open(self.get_run_full_path(out_filename), 'w', newline='', encoding='utf8') as filtered_ratings:
+        # out_filename = self.find_between(first_category_filename, 'ratings', 'Min') + '_FILTERED_BY_' + self.find_between(second_category_filename, 'ratings', 'Min') +'.csv'
+        out_filename = "{}-FILTERED-BY-{}-MIN-ITEMS-{}.csv".format(self.find_between(first_category_filename, 'ratings_', '_Min'),
+                                                                   self.find_between(second_category_filename, 'ratings_', '_Min'),
+                                                                   minimal_item_count)
+        if os.path.exists(self.get_cross_filter_full_path(out_filename)):
+            return out_filename
+        with open(self.get_cross_filter_full_path(out_filename), 'w', newline='', encoding='utf8') as filtered_ratings:
             writer = csv.writer(filtered_ratings, delimiter=',', lineterminator='\n')
             cat_file = open(os.path.join(self.working_folder, first_category_filename), 'rt')
             try:
                 cat_file_reader = csv.reader(cat_file)
                 for row in cat_file_reader:
                     if row[0] in big_table.index:
-                        # The [7:] is hack to remove the source/target prefix
                         if big_table.get_value(row[0], first_category_filename) >= minimal_item_count and \
                                         big_table.get_value(row[0], second_category_filename) >= minimal_item_count:
                             writer.writerow(row)
@@ -156,10 +162,10 @@ class RMGM_Boost(object):
         self.step += 1
         print('3:handle_overlapping_and_nonoverlapping_data Started (wish me luck it can take ages)... (minimal_ratings_per_item = {})'.format(minimal_ratings_per_item))
         # Load overlapping rating list from source
-        overlap_source_list_data = pd.read_csv(self.get_run_full_path(self.overlap_source_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0, 1, 2])
+        overlap_source_list_data = pd.read_csv(self.get_cross_filter_full_path(self.overlap_source_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0, 1, 2])
         overlap_source_list_data[['Rating']] = overlap_source_list_data[['Rating']].astype(int)
         # Load overlapping rating list from target
-        overlap_target_list_data = pd.read_csv(self.get_run_full_path(self.overlap_target_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0, 1, 2])
+        overlap_target_list_data = pd.read_csv(self.get_cross_filter_full_path(self.overlap_target_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0, 1, 2])
         overlap_target_list_data[['Rating']] = overlap_target_list_data[['Rating']].astype(int)
 
         # Get all distinct users
@@ -655,10 +661,10 @@ class RMGM_Boost(object):
         self.step += 1
         print('7:handle_overlappind_data_to_learn_SVD_params Started (minimal_ratings_per_item = {})'.format(minimal_ratings_per_item))
         # Load overlapping rating list from source
-        overlap_source_list_data = pd.read_csv(self.get_run_full_path(self.overlap_source_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0, 1, 2])
+        overlap_source_list_data = pd.read_csv(self.get_cross_filter_full_path(self.overlap_source_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0, 1, 2])
         overlap_source_list_data[['Rating']] = overlap_source_list_data[['Rating']].astype(int)
         # Load overlapping rating list from target
-        overlap_target_list_data = pd.read_csv(self.get_run_full_path(self.overlap_target_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0, 1, 2])
+        overlap_target_list_data = pd.read_csv(self.get_cross_filter_full_path(self.overlap_target_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0, 1, 2])
         overlap_target_list_data[['Rating']] = overlap_target_list_data[['Rating']].astype(int)
 
         # Get all distinct users
@@ -777,6 +783,10 @@ class RMGM_Boost(object):
 
     def get_run_full_path(self, filename, folder=TEMP_FOLDER):
         return os.path.join(self.working_folder + self.run_folder, folder, filename)
+
+
+    def get_cross_filter_full_path(self, filename):
+        return os.path.join(self.working_folder + CROSS_FILTERED, filename)
 
     def find_between(self, s, first, last):
         try:
