@@ -14,7 +14,7 @@ SOURCE_RATING_FILE = 'ratings_Books_MinRatings30_OrgU8026324_OrgI2330066_AftrU59
 TARGET_RATING_FILE = 'ratings_Movies_and_TV_MinRatings30_OrgU2088620_OrgI200941_AftrU8929_AftrI107066_Ratings782939.csv'
 
 def from_start():
-    rmgm_boost = RMGM_Boost(DATA_ROOT, SOURCE_RATING_FILE, TARGET_RATING_FILE, MINIMUM_X_CATEGORIES_FILENAME, folds=5, users_count=150, items_count=200)
+    rmgm_boost = RMGM_Boost(DATA_ROOT, SOURCE_RATING_FILE, TARGET_RATING_FILE, MINIMUM_X_CATEGORIES_FILENAME, folds=5, users_count=500, items_count=1000)
     rmgm_boost.extract_cross_domain_ratings()
     rmgm_boost.generate_mini_domains()
     rmgm_boost.generate_folds()

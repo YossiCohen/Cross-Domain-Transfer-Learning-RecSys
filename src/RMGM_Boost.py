@@ -58,16 +58,17 @@ class RMGM_Boost(object):
     """Enrich target domain with CF generated data from near domains """
 
     def __init__(self, working_folder, source_domain_filename, target_domain_filename, minimal_x_filename,
-                 target_overlap_percent=0.30, users_count=250, items_count=500, folds=5,
+                 target_overlap_percent=0.30, users_count=500, items_count=1000, folds=5,
                  boosting_rate=0.5):
         """Returns a RMGM_Boost object ready to run"""
         self.working_folder = working_folder
         self.source_domain_filename = source_domain_filename
         self.target_domain_filename = target_domain_filename
         self.minimal_x_filename = os.path.join(self.working_folder, minimal_x_filename)
-        self.run_folder = "{}-S-{}-D-{}".format(time.strftime('%y%m%d%H%M%S'),
+        self.run_folder = "{}-S-{}-D-{}-OVERLAP-{}-BOOSTING-{}".format(time.strftime('%y%m%d%H%M%S'),
                                                 self.find_between(source_domain_filename, 'ratings_', '_Min'),
-                                                self.find_between(target_domain_filename, 'ratings_', '_Min'))
+                                                self.find_between(target_domain_filename, 'ratings_', '_Min'),
+                                                target_overlap_percent, boosting_rate)
         os.mkdir(working_folder + self.run_folder)
         os.mkdir(os.path.join(self.working_folder, self.run_folder, TEMP_FOLDER))
         os.mkdir(os.path.join(self.working_folder, self.run_folder, RMGM_FOLDER))
@@ -82,9 +83,6 @@ class RMGM_Boost(object):
         self.boosting_rate = boosting_rate
         self.number_of_overlapping_users = int(self.users_count * self.target_overlap_percent)
         self.number_of_nonoverlapping_users = self.users_count - self.number_of_overlapping_users
-        #copy input files to temp folder - just for convinient
-        # copyfile(os.path.join(self.working_folder, source_domain_filename), self.get_temp_full_path( self.source_domain_filename))
-        # copyfile(os.path.join(self.working_folder, target_domain_filename), self.get_temp_full_path( self.target_domain_filename))
         self.step = 0
         self.string_of_params = '0:RMGM_Boost Initiated successfully: \nworking_folder={} \nsource_category_filename={} ' \
                                 '\ntarget_category_filename={} \nminimal_x_filename={} \ntemp_folder={} \ntarget_overlap_percent={}' \
@@ -174,6 +172,8 @@ class RMGM_Boost(object):
         while True: #because of the randomallity - we should try this some times
             loop_counter += 1
             print("---handle_overlapping_and_nonoverlapping_data - try no.{}".format(str(loop_counter)))
+            if loop_counter == 500:
+                raise "handle_overlapping_and_nonoverlapping_data failed on try 500"
 
 
             # Randomly select the sampled users - too sparse, instead, we choose from top N users see below  :(
@@ -501,6 +501,9 @@ class RMGM_Boost(object):
                 with open(self.get_run_full_path(MINI_TARGET_DOMAIN_LIST_FOLD.format(str(main_fold_loop) + "B"))) as infile:
                     for line in infile:
                         outfile.write(line)
+        #Copy source and target lists to be used in Matlab
+        copyfile(self.get_run_full_path(MINI_SOURCE_DOMAIN_LIST), self.get_run_full_path(MINI_SOURCE_DOMAIN_LIST, folder=output_folder))
+        copyfile(self.get_run_full_path(MINI_TARGET_DOMAIN_LIST), self.get_run_full_path(MINI_TARGET_DOMAIN_LIST, folder=output_folder))
         pass
 
     def mini_domain_kfold_split_to_files(self, mini_domain, folds_filename, list_fold_filename, domain_name):
@@ -643,6 +646,8 @@ class RMGM_Boost(object):
                     if random.uniform(0, 1) < self.boosting_rate:
                         prediction = svd.predict(user, item)
                         boosted_target_overlap.set_value(user, item, np.round(prediction.est))
+                else: #Prevent duplicate lines - real ratings are not boosted data
+                    boosted_target_overlap.set_value(user, item, None)
 
         with open(self.get_run_full_path(BOOSTED_TARGET_MATRIX), 'w') as f:
             boosted_target_overlap.to_csv(f)
@@ -673,6 +678,9 @@ class RMGM_Boost(object):
         while True: #because of the randomallity - we should try this some times
             loop_counter += 1
             print("---handle_overlappind_data_to_learn_SVD_params - try no.{}".format(str(loop_counter)))
+            if loop_counter == 500:
+                raise "handle_overlappind_data_to_learn_SVD_params failed on try 500"
+
 
             # Select overlapping users with most Items possible
             overlap_target_users_rating_count = overlap_target_list_data.groupby('User').Rating.count()
@@ -795,93 +803,3 @@ class RMGM_Boost(object):
             return s[start:end]
         except ValueError:
             return ""
-
-# def pivot_rating_list_to_matrix_file(self, list_filename, matrix_filename, minimum_items_per_column = 2):
-#     list_data = pd.read_csv(list_filename, header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0,1,2])
-#     list_data[['Rating']] = list_data[['Rating']].astype(int)
-#     print('------FILENAME:{}'.format(list_filename))
-#     list_data.info()
-#     data_matrix = list_data.pivot_table(index=['User'], columns=['Item'], values=['Rating'])
-#
-#     # fix structure - remove one dimention from the pivot - many Rating column headers
-#     data_matrix.columns = data_matrix.columns.get_level_values(1)
-#     data_matrix.dropna(thresh=minimum_items_per_column, axis=1, inplace=True)
-#     with open(matrix_filename, 'w') as f:
-#         data_matrix.to_csv(f)
-#     return data_matrix
-
-# def sample_data_matrix_to_file(self, data_matrix, sample_matrix_filename, number_of_users_to_sample):
-#     #sample users
-#     temp = data_matrix.sample(n=number_of_users_to_sample)
-#     #this will remove empty columns
-#     temp = temp.dropna(axis=1, how='all')
-#     #now we have users with no empty columns - lets sample items
-#     temp = temp.sample(n=self.items_count, axis=1)
-#     with open(sample_matrix_filename, 'w') as f:
-#         temp.to_csv(f)
-#     return temp
-
-# def generate_overlapping_users_file(self):
-#
-#     source_data = self.pivot_rating_list_to_matrix_file(self.get_temp_full_path(self.overlap_source_filename),
-#                                                         self.get_temp_full_path(FULL_SOURCE_DATA_MATRIX_OVERLAP))
-#     target_data = self.pivot_rating_list_to_matrix_file(self.get_temp_full_path(self.overlap_target_filename),
-#                                                         self.get_temp_full_path(FULL_TARGET_DATA_MATRIX_OVERLAP))
-#     self.overlapping_users = list(source_data.index.values)
-#
-#     source_sample = self.sample_data_matrix_to_file(source_data, self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_OVERLAP),
-#                                     self.number_of_overlapping_users)
-#     target_sample = self.sample_data_matrix_to_file(target_data, self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP),
-#                                     self.number_of_overlapping_users)
-#     self.overlapping_source_items = list(source_sample.columns.values)
-#     self.overlapping_target_items = list(target_sample.columns.values)
-#     pass
-
-# def generate_nonoverlapping_users_file(self):
-#     source_data = self.pivot_rating_list_to_matrix_file(self.get_temp_full_path(self.source_domain_filename),
-#                                                         self.get_temp_full_path(FULL_SOURCE_DATA_MATRIX))
-#     source_nonoverlapping = source_data.loc[~source_data.index.isin(self.overlapping_users)]
-#     with open(self.get_temp_full_path(FULL_SOURCE_DATA_MATRIX_NONOVERLAP), 'w') as f:
-#         source_nonoverlapping.to_csv(f)
-#
-#     target_data = self.pivot_rating_list_to_matrix_file(self.get_temp_full_path(self.target_domain_filename),
-#                                                         self.get_temp_full_path(FULL_TARGET_DATA_MATRIX))
-#     target_nonoverlapping = target_data.loc[~target_data.index.isin(self.overlapping_users)]
-#     with open(self.get_temp_full_path(FULL_TARGET_DATA_MATRIX_NONOVERLAP), 'w') as f:
-#         target_nonoverlapping.to_csv(f)
-#
-#     self.sample_data_matrix_to_file(source_nonoverlapping, self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP),
-#                                     self.users_count - self.number_of_overlapping_users)
-#     self.sample_data_matrix_to_file(target_nonoverlapping, self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP),
-#                                     self.users_count - self.number_of_overlapping_users)
-#     pass
-
-# def remove_items_from_samples(self):
-#     sampled_source_nonoverlap = pd.read_csv(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP), index_col=0)
-#     sampled_source_overlap = pd.read_csv(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_OVERLAP), index_col=0)
-#     mini_source_domain = pd.concat([sampled_source_nonoverlap, sampled_source_overlap]).sample(self.items_count, axis = 1)
-#     with open(self.get_temp_full_path(MINI_SOURCE_DOMAIN), 'w') as f:
-#         mini_source_domain.to_csv(f)
-#
-#     sampled_target_nonoverlap = pd.read_csv(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP), index_col=0)
-#     sampled_target_overlap = pd.read_csv(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP), index_col=0)
-#     mini_target_domain = pd.concat([sampled_target_nonoverlap, sampled_target_overlap]).sample(self.items_count, axis=1)
-#     with open(self.get_temp_full_path(MINI_TARGET_DOMAIN), 'w') as f:
-#         mini_target_domain.to_csv(f)
-#
-#     # fix the overlap/nonoverlap to match the mini columns
-#     source_selected_columns = list(mini_source_domain.columns.values)
-#     with open(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_OVERLAP + '.fixed.csv'), 'w') as f:
-#         sampled_source_overlap.loc[:, source_selected_columns].to_csv(f)
-#     with open(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP + '.fixed.csv'), 'w') as f:
-#         sampled_source_nonoverlap.loc[:, source_selected_columns].to_csv(f)
-#
-#     target_selected_columns = list(mini_target_domain.columns.values)
-#     with open(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP + '.fixed.csv'), 'w') as f:
-#         sampled_target_overlap.loc[:, target_selected_columns].to_csv(f)
-#     with open(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP + '.fixed.csv'), 'w') as f:
-#         sampled_target_nonoverlap.loc[:, target_selected_columns].to_csv(f)
-#     pass
-
-
-
