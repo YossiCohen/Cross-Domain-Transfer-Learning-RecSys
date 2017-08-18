@@ -515,6 +515,8 @@ class RMGM_Boost(object):
         while True:
             split_try += 1
             print("---trying to split domain:{} for RMGM, no.{}".format(domain_name,split_try))
+            if split_try == 500:
+                raise "mini_domain_kfold_split_to_files failed on split_try 500"
             np.random.seed(split_try)
             shuffled_mini_domain = shuffle(mini_domain)
             shuffled_mini_domain.insert(0, 'Split_ID', range(0, len(shuffled_mini_domain)))
@@ -552,7 +554,6 @@ class RMGM_Boost(object):
 
             #alternate values
             # https://stackoverflow.com/questions/23330654/update-a-dataframe-in-pandas-while-iterating-row-by-row
-            #
             for a_idx, a_group in enumerate(a):
                 for (user,items) in a_group.iterrows():
                     count = 1
