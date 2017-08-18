@@ -27,10 +27,10 @@ def from_start():
     rmgm_boost.generate_mini_domains()
     rmgm_boost.generate_folds()
     rmgm_boost.learn_SVD_parameters()
-    pickleFile = rmgm_boost.get_temp_full_path('rmgm_boost_save.pickle')
+    rmgm_boost.build_SVD_and_generate_boosted_target_ratings()
+    pickleFile = rmgm_boost.get_run_full_path('rmgm_boost_save.pickle')
     with open(pickleFile, 'wb') as handle:
         pickle.dump(rmgm_boost, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    # rmgm_boost.build_SVD_and_generate_boosted_target_ratings()
 
 def from_middle_dev():
     with open(os.path.join('C:\\RS\\Amazon\\Tresholds\\MINIMAL_THRESHOLD_30\\170818012910-S-_CDs_and_Vinyl_-D-_Movies_and_TV_', 'rmgm_boost_save.pickle'), 'rb') as handle:
@@ -41,7 +41,7 @@ def from_middle_dev():
 
 timestamp = time.strftime('%y%m%d%H%M%S')
 start = time.time()
-# from_start()
-from_middle_dev()
+from_start()
+# from_middle_dev()
 end = time.time()
 print('Total Time:{}'.format(end - start))

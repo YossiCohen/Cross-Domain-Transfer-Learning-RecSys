@@ -49,6 +49,10 @@ MINI_TARGET_DOMAIN_TEST = "mini_target_domain_test{}.csv"
 LEARN_SVD_PARAMS = "learn_svd_params{}.csv"
 BOOSTING_SVD_FOR_OVERLAP = "boosting_svd_for_overlap{}.csv"
 
+TEMP_FOLDER = "temp"
+RMGM_FOLDER = "rmgm-folds"
+RMGM_BOOST_FOLDER = "rmgm-boost-folds"
+
 class RMGM_Boost(object):
     """Enrich target domain with CF generated data from near domains """
 
@@ -60,10 +64,13 @@ class RMGM_Boost(object):
         self.source_domain_filename = source_domain_filename
         self.target_domain_filename = target_domain_filename
         self.minimal_x_filename = os.path.join(self.working_folder, minimal_x_filename)
-        self.temp_folder = "{}-S-{}-D-{}".format(time.strftime('%y%m%d%H%M%S'),
-                                                 self.find_between(source_domain_filename, 'ratings', 'Min'),
-                                                 self.find_between(target_domain_filename, 'ratings', 'Min'))
-        os.mkdir(working_folder + self.temp_folder)
+        self.run_folder = "{}-S-{}-D-{}".format(time.strftime('%y%m%d%H%M%S'),
+                                                self.find_between(source_domain_filename, 'ratings', 'Min'),
+                                                self.find_between(target_domain_filename, 'ratings', 'Min'))
+        os.mkdir(working_folder + self.run_folder)
+        os.mkdir(os.path.join(self.working_folder, self.run_folder, TEMP_FOLDER))
+        os.mkdir(os.path.join(self.working_folder, self.run_folder, RMGM_FOLDER))
+        os.mkdir(os.path.join(self.working_folder, self.run_folder, RMGM_BOOST_FOLDER))
         self.target_overlap_percent = target_overlap_percent
         self.users_count = users_count
         self.items_count = items_count
@@ -83,7 +90,7 @@ class RMGM_Boost(object):
             self.source_domain_filename,
             self.target_domain_filename,
             self.minimal_x_filename,
-            self.temp_folder,
+            self.run_folder,
             self.target_overlap_percent,
             self.users_count,
             self.items_count,
@@ -97,7 +104,7 @@ class RMGM_Boost(object):
             raise "Error in step!"
         #the [:6] is an ugly hack to substring source and target (both 6 characters)
         out_filename = self.find_between(first_category_filename, 'ratings', 'Min') + '_FILTERED_BY_' + self.find_between(second_category_filename, 'ratings', 'Min') +'.csv'
-        with open(self.get_temp_full_path(out_filename), 'w', newline='', encoding='utf8') as filtered_ratings:
+        with open(self.get_run_full_path(out_filename), 'w', newline='', encoding='utf8') as filtered_ratings:
             writer = csv.writer(filtered_ratings, delimiter=',', lineterminator='\n')
             cat_file = open(os.path.join(self.working_folder, first_category_filename), 'rt')
             try:
@@ -149,10 +156,10 @@ class RMGM_Boost(object):
         self.step += 1
         print('3:handle_overlapping_and_nonoverlapping_data Started (wish me luck it can take ages)... (minimal_ratings_per_item = {})'.format(minimal_ratings_per_item))
         # Load overlapping rating list from source
-        overlap_source_list_data = pd.read_csv(self.get_temp_full_path(self.overlap_source_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0,1,2])
+        overlap_source_list_data = pd.read_csv(self.get_run_full_path(self.overlap_source_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0, 1, 2])
         overlap_source_list_data[['Rating']] = overlap_source_list_data[['Rating']].astype(int)
         # Load overlapping rating list from target
-        overlap_target_list_data = pd.read_csv(self.get_temp_full_path(self.overlap_target_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0,1,2])
+        overlap_target_list_data = pd.read_csv(self.get_run_full_path(self.overlap_target_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0, 1, 2])
         overlap_target_list_data[['Rating']] = overlap_target_list_data[['Rating']].astype(int)
 
         # Get all distinct users
@@ -333,22 +340,22 @@ class RMGM_Boost(object):
             sampled_target_nonoverlapping = sampled_target_nonoverlapping.sort_index(axis=0)
             sampled_target_nonoverlapping = sampled_target_nonoverlapping.sort_index(axis=1)
 
-            with open(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP), 'w') as f:
+            with open(self.get_run_full_path(SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP), 'w') as f:
                 sampled_source_nonoverlapping.to_csv(f)
-            with open(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP), 'w') as f:
+            with open(self.get_run_full_path(SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP), 'w') as f:
                 sampled_target_nonoverlapping.to_csv(f)
-            with open(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_OVERLAP), 'w') as f:
+            with open(self.get_run_full_path(SAMPLED_SOURCE_DATA_MATRIX_OVERLAP), 'w') as f:
                 sampled_source_overlapping.to_csv(f)
-            with open(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP), 'w') as f:
+            with open(self.get_run_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP), 'w') as f:
                 sampled_target_overlapping.to_csv(f)
 
 
             source_list = sampled_source_overlapping.stack()
             target_list = sampled_target_overlapping.stack()
 
-            with open(self.get_temp_full_path(SAMPLED_SOURCE_DATA_LIST_OVERLAP), 'w') as f:
+            with open(self.get_run_full_path(SAMPLED_SOURCE_DATA_LIST_OVERLAP), 'w') as f:
                 source_list.to_csv(f)
-            with open(self.get_temp_full_path(SAMPLED_TARGET_DATA_LIST_OVERLAP), 'w') as f:
+            with open(self.get_run_full_path(SAMPLED_TARGET_DATA_LIST_OVERLAP), 'w') as f:
                 target_list.to_csv(f)
             break
         pass
@@ -407,34 +414,34 @@ class RMGM_Boost(object):
         self.step += 1
         print('4:merge_overlapping_and_nonoverlapping Started')
         #handle source
-        sampled_source_nonoverlap = pd.read_csv(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP), index_col=0)
-        sampled_source_overlap = pd.read_csv(self.get_temp_full_path(SAMPLED_SOURCE_DATA_MATRIX_OVERLAP), index_col=0)
+        sampled_source_nonoverlap = pd.read_csv(self.get_run_full_path(SAMPLED_SOURCE_DATA_MATRIX_NONOVERLAP), index_col=0)
+        sampled_source_overlap = pd.read_csv(self.get_run_full_path(SAMPLED_SOURCE_DATA_MATRIX_OVERLAP), index_col=0)
         # remove empty lines
         sampled_source_nonoverlap = sampled_source_nonoverlap.dropna(how='all')
         sampled_source_overlap = sampled_source_overlap.dropna(how='all')
         mini_source_domain = pd.concat([sampled_source_nonoverlap, sampled_source_overlap]).sample(self.items_count, axis = 1)
         mini_source_domain = mini_source_domain.sort_index(axis=0)
         mini_source_domain = mini_source_domain.sort_index(axis=1)
-        with open(self.get_temp_full_path(MINI_SOURCE_DOMAIN), 'w') as f:
+        with open(self.get_run_full_path(MINI_SOURCE_DOMAIN), 'w') as f:
             mini_source_domain.to_csv(f)
 
-        sampled_target_nonoverlap = pd.read_csv(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP), index_col=0)
-        sampled_target_overlap = pd.read_csv(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP), index_col=0)
+        sampled_target_nonoverlap = pd.read_csv(self.get_run_full_path(SAMPLED_TARGET_DATA_MATRIX_NONOVERLAP), index_col=0)
+        sampled_target_overlap = pd.read_csv(self.get_run_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP), index_col=0)
         #remove empty lines
         sampled_target_nonoverlap = sampled_target_nonoverlap.dropna(how='all')
         sampled_target_overlap = sampled_target_overlap.dropna(how='all')
         mini_target_domain = pd.concat([sampled_target_nonoverlap, sampled_target_overlap]).sample(self.items_count, axis=1)
         mini_target_domain = mini_target_domain.sort_index(axis=0)
         mini_target_domain = mini_target_domain.sort_index(axis=1)
-        with open(self.get_temp_full_path(MINI_TARGET_DOMAIN), 'w') as f:
+        with open(self.get_run_full_path(MINI_TARGET_DOMAIN), 'w') as f:
             mini_target_domain.to_csv(f)
 
         source_list = mini_source_domain.stack()
         target_list = mini_target_domain.stack()
 
-        with open(self.get_temp_full_path(MINI_SOURCE_DOMAIN_LIST), 'w') as f:
+        with open(self.get_run_full_path(MINI_SOURCE_DOMAIN_LIST), 'w') as f:
             source_list.to_csv(f)
-        with open(self.get_temp_full_path(MINI_TARGET_DOMAIN_LIST), 'w') as f:
+        with open(self.get_run_full_path(MINI_TARGET_DOMAIN_LIST), 'w') as f:
             target_list.to_csv(f)
 
         self.mini_matrices_sparse_info = 'Matrices total rating count:\n Source:{}\n Target:{} ' \
@@ -454,30 +461,38 @@ class RMGM_Boost(object):
         self.step += 1
         print('5:generate_folds Started')
         #load mini data sets
-        mini_source_domain = pd.read_csv(self.get_temp_full_path(MINI_SOURCE_DOMAIN), index_col=0)
-        mini_target_domain = pd.read_csv(self.get_temp_full_path(MINI_TARGET_DOMAIN), index_col=0)
+        mini_source_domain = pd.read_csv(self.get_run_full_path(MINI_SOURCE_DOMAIN), index_col=0)
+        mini_target_domain = pd.read_csv(self.get_run_full_path(MINI_TARGET_DOMAIN), index_col=0)
 
         #generate folds for rmgm
         self.mini_domain_kfold_split_to_files(mini_source_domain, MINI_SOURCE_DOMAIN_FOLD, MINI_SOURCE_DOMAIN_LIST_FOLD, 'source')
         self.mini_domain_kfold_split_to_files(mini_target_domain, MINI_TARGET_DOMAIN_FOLD, MINI_TARGET_DOMAIN_LIST_FOLD, 'target')
 
-        self.mini_target_domain_train_and_test()
+        self.mini_target_domain_train_and_test(boost=False)
 
         pass
 
-    def mini_target_domain_train_and_test(self):
+    def mini_target_domain_train_and_test(self, boost):
+        if boost:
+            output_folder = RMGM_BOOST_FOLDER
+        else:
+            output_folder = RMGM_FOLDER
         for main_fold_loop in range(0, self.folds):
-            with open(self.get_temp_full_path(MINI_TARGET_DOMAIN_TRAIN.format(main_fold_loop)), 'w') as outfile:
+            with open(self.get_run_full_path(MINI_TARGET_DOMAIN_TRAIN.format(main_fold_loop), folder=output_folder), 'w') as outfile:
+                if boost: #if boost - always add the bosted data
+                    with open(self.get_run_full_path(BOOSTED_TARGET_LIST)) as infile:
+                        for line in infile:
+                            outfile.write(line)
                 for inner_fold_loop in range(0, self.folds):
-                    with open(self.get_temp_full_path(MINI_TARGET_DOMAIN_LIST_FOLD.format(str(inner_fold_loop)+"A"))) as infile:
+                    with open(self.get_run_full_path(MINI_TARGET_DOMAIN_LIST_FOLD.format(str(inner_fold_loop)+ "A"))) as infile:
                         for line in infile:
                             outfile.write(line)
                     if main_fold_loop != inner_fold_loop:
-                        with open(self.get_temp_full_path(MINI_TARGET_DOMAIN_LIST_FOLD.format(str(inner_fold_loop)+"B"))) as infile:
+                        with open(self.get_run_full_path(MINI_TARGET_DOMAIN_LIST_FOLD.format(str(inner_fold_loop)+ "B"))) as infile:
                             for line in infile:
                                 outfile.write(line)
-            with open(self.get_temp_full_path(MINI_TARGET_DOMAIN_TEST.format(main_fold_loop)), 'w') as outfile:
-                with open(self.get_temp_full_path(MINI_TARGET_DOMAIN_LIST_FOLD.format(str(main_fold_loop) + "B"))) as infile:
+            with open(self.get_run_full_path(MINI_TARGET_DOMAIN_TEST.format(main_fold_loop), folder=output_folder), 'w') as outfile:
+                with open(self.get_run_full_path(MINI_TARGET_DOMAIN_LIST_FOLD.format(str(main_fold_loop) + "B"))) as infile:
                     for line in infile:
                         outfile.write(line)
         pass
@@ -552,21 +567,21 @@ class RMGM_Boost(object):
             #Save the files
             for (fold_number, frame) in groups:
                 frame = frame.drop(['Split_ID'], axis=1)
-                frame.to_csv(self.get_temp_full_path(folds_filename.format(fold_number)))
+                frame.to_csv(self.get_run_full_path(folds_filename.format(fold_number)))
                 stacked_frame = frame.stack()
-                with open(self.get_temp_full_path(list_fold_filename.format(fold_number)), 'w') as f:
+                with open(self.get_run_full_path(list_fold_filename.format(fold_number)), 'w') as f:
                     stacked_frame.to_csv(f)
 
             for (fold_number, frame) in enumerate(a):
-                frame.to_csv(self.get_temp_full_path(folds_filename.format(str(fold_number)+"A")))
+                frame.to_csv(self.get_run_full_path(folds_filename.format(str(fold_number) + "A")))
                 stacked_frame = frame.stack()
-                with open(self.get_temp_full_path(list_fold_filename.format(str(fold_number)+"A")), 'w') as f:
+                with open(self.get_run_full_path(list_fold_filename.format(str(fold_number)+ "A")), 'w') as f:
                     stacked_frame.to_csv(f)
 
             for (fold_number, frame) in enumerate(b):
-                frame.to_csv(self.get_temp_full_path(folds_filename.format(str(fold_number)+"B")))
+                frame.to_csv(self.get_run_full_path(folds_filename.format(str(fold_number) + "B")))
                 stacked_frame = frame.stack()
-                with open(self.get_temp_full_path(list_fold_filename.format(str(fold_number)+"B")), 'w') as f:
+                with open(self.get_run_full_path(list_fold_filename.format(str(fold_number)+ "B")), 'w') as f:
                     stacked_frame.to_csv(f)
 
 
@@ -611,7 +626,7 @@ class RMGM_Boost(object):
         svd, performance = self.train_model(folds, self.svd_factors, self.svd_epochs, self.svd_learning_rates, self.svd_regularizations)
         print_perf(performance)
         #load overlaping table to predict empry values
-        sampled_target_overlap = pd.read_csv(self.get_temp_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP), index_col=0)
+        sampled_target_overlap = pd.read_csv(self.get_run_full_path(SAMPLED_TARGET_DATA_MATRIX_OVERLAP), index_col=0)
         # remove empty lines
         boosted_target_overlap = sampled_target_overlap.dropna(how='all')
 
@@ -623,13 +638,14 @@ class RMGM_Boost(object):
                         prediction = svd.predict(user, item)
                         boosted_target_overlap.set_value(user, item, np.round(prediction.est))
 
-        with open(self.get_temp_full_path(BOOSTED_TARGET_MATRIX), 'w') as f:
+        with open(self.get_run_full_path(BOOSTED_TARGET_MATRIX), 'w') as f:
             boosted_target_overlap.to_csv(f)
         target_list = boosted_target_overlap.stack()
-        with open(self.get_temp_full_path(BOOSTED_TARGET_LIST), 'w') as f:
+        with open(self.get_run_full_path(BOOSTED_TARGET_LIST), 'w') as f:
             target_list.to_csv(f)
-        pass
 
+        self.mini_target_domain_train_and_test(boost=True)
+        pass
 
     def extract_overlapping_data_to_learn_SVD_params(self, minimal_ratings_per_item = 2):
         # Sorry for the copy-paste from handle_overlapping_and_nonoverlapping_data, this should be refactored but no time 4 that now :(
@@ -639,10 +655,10 @@ class RMGM_Boost(object):
         self.step += 1
         print('7:handle_overlappind_data_to_learn_SVD_params Started (minimal_ratings_per_item = {})'.format(minimal_ratings_per_item))
         # Load overlapping rating list from source
-        overlap_source_list_data = pd.read_csv(self.get_temp_full_path(self.overlap_source_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0,1,2])
+        overlap_source_list_data = pd.read_csv(self.get_run_full_path(self.overlap_source_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0, 1, 2])
         overlap_source_list_data[['Rating']] = overlap_source_list_data[['Rating']].astype(int)
         # Load overlapping rating list from target
-        overlap_target_list_data = pd.read_csv(self.get_temp_full_path(self.overlap_target_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0,1,2])
+        overlap_target_list_data = pd.read_csv(self.get_run_full_path(self.overlap_target_filename), header=None, index_col=None, names=["User", "Item", "Rating"], usecols=[0, 1, 2])
         overlap_target_list_data[['Rating']] = overlap_target_list_data[['Rating']].astype(int)
 
         # Get all distinct users
@@ -711,17 +727,17 @@ class RMGM_Boost(object):
             sampled_target_overlapping = sampled_target_overlapping.sort_index(axis=0)
             sampled_target_overlapping = sampled_target_overlapping.sort_index(axis=1)
 
-            with open(self.get_temp_full_path(LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_MATRIX_OVERLAP), 'w') as f:
+            with open(self.get_run_full_path(LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_MATRIX_OVERLAP), 'w') as f:
                 sampled_source_overlapping.to_csv(f)
-            with open(self.get_temp_full_path(LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_MATRIX_OVERLAP), 'w') as f:
+            with open(self.get_run_full_path(LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_MATRIX_OVERLAP), 'w') as f:
                 sampled_target_overlapping.to_csv(f)
 
             source_list = sampled_source_overlapping.stack()
             target_list = sampled_target_overlapping.stack()
 
-            with open(self.get_temp_full_path(LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_OVERLAP_LIST), 'w') as f:
+            with open(self.get_run_full_path(LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_OVERLAP_LIST), 'w') as f:
                 source_list.to_csv(f)
-            with open(self.get_temp_full_path(LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_OVERLAP_LIST), 'w') as f:
+            with open(self.get_run_full_path(LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_OVERLAP_LIST), 'w') as f:
                 target_list.to_csv(f)
             break
         pass
@@ -731,13 +747,13 @@ class RMGM_Boost(object):
         test_percent = 1 / self.folds
         folds_names = list()
         try:
-            source_data = pd.read_csv(self.get_temp_full_path(source), index_col=0, header=None)
-            target_data = pd.read_csv(self.get_temp_full_path(target), index_col=0, header=None)
+            source_data = pd.read_csv(self.get_run_full_path(source), index_col=0, header=None)
+            target_data = pd.read_csv(self.get_run_full_path(target), index_col=0, header=None)
             for fold in range(0, self.folds):
                 print('----Splitting fold {}:'.format(str(fold)))
                 train, test = train_test_split(target_data, test_size=test_percent)
-                touple = [self.get_temp_full_path(split_name.format('_train'+str(fold))),
-                          self.get_temp_full_path(split_name.format('_test'+str(fold)))]
+                touple = [self.get_run_full_path(split_name.format('_train' + str(fold))),
+                          self.get_run_full_path(split_name.format('_test' + str(fold)))]
                 folds_names.append(touple)
                 with open(touple[0], 'w') as f:
                     source_data.to_csv(f, header=False)
@@ -759,8 +775,8 @@ class RMGM_Boost(object):
         # print_perf(perf)
         return algo, perf
 
-    def get_temp_full_path(self, filename):
-        return os.path.join(self.working_folder + self.temp_folder, filename)
+    def get_run_full_path(self, filename, folder=TEMP_FOLDER):
+        return os.path.join(self.working_folder + self.run_folder, folder, filename)
 
     def find_between(self, s, first, last):
         try:
