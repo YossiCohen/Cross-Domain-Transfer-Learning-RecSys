@@ -13,10 +13,10 @@ MOVIES = 'ratings_Movies_and_TV_MinRatings30_OrgU2088620_OrgI200941_AftrU8929_Af
 MUSIC = 'ratings_CDs_and_Vinyl_MinRatings30_OrgU1578597_OrgI486360_AftrU8898_AftrI265746_Ratings805758.csv'
 SOURCE_RATING_FILES = [[BOOKS, MOVIES], [BOOKS, MUSIC]]
 OVERLAP_PERCENT = [0.3, 0.2]
-BOOSTING_RATE = [0.5, 1]
+BOOSTING_RATE = [0.05, 0.5]
 
 def run_once(working_dir, source_filename, target_filename, min_x_categories_filename, target_overlap_percent, boosting_rate):
-    rmgm_boost = RMGM_Boost(working_dir, source_filename, target_filename, min_x_categories_filename, target_overlap_percent=target_overlap_percent, boosting_rate=boosting_rate)
+    rmgm_boost = RMGM_Boost(working_dir, source_filename, target_filename, min_x_categories_filename, overlap_percent=target_overlap_percent, boosting_rate=boosting_rate)
     rmgm_boost.extract_cross_domain_ratings()
     rmgm_boost.generate_mini_domains()
     rmgm_boost.generate_folds()
@@ -41,7 +41,7 @@ with open(out_filename, 'w', newline='', encoding='utf8') as sum_f:
             for boost_rate in BOOSTING_RATE:
                 try:
                     boosted = run_once(DATA_ROOT, domains[0], domains[1], MINIMUM_X_CATEGORIES_FILENAME, target_overlap_percent=overlap, boosting_rate=boost_rate)
-                    writer.writerow([time.strftime('%y%m%d%H%M%S'),
+                    writer.writerow([boosted.run_folder,
                                      RMGM_Boost.find_between(None, domains[0], 'ratings_', '_Min'),
                                      RMGM_Boost.find_between(None, domains[1], 'ratings_', '_Min'),
                                      str(overlap), str(boost_rate),'OK',boosted.svd_factors, boosted.svd_epochs,

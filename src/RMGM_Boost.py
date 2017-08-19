@@ -58,7 +58,7 @@ class RMGM_Boost(object):
     """Enrich target domain with CF generated data from near domains """
 
     def __init__(self, working_folder, source_domain_filename, target_domain_filename, minimal_x_filename,
-                 target_overlap_percent=0.30, users_count=500, items_count=1000, folds=5,
+                 overlap_percent=0.30, users_count=500, items_count=1000, folds=5,
                  boosting_rate=0.5):
         """Returns a RMGM_Boost object ready to run"""
         self.working_folder = working_folder
@@ -66,22 +66,22 @@ class RMGM_Boost(object):
         self.target_domain_filename = target_domain_filename
         self.minimal_x_filename = os.path.join(self.working_folder, minimal_x_filename)
         self.run_folder = "{}-S-{}-D-{}-OVERLAP-{}-BOOSTING-{}".format(time.strftime('%y%m%d%H%M%S'),
-                                                self.find_between(source_domain_filename, 'ratings_', '_Min'),
-                                                self.find_between(target_domain_filename, 'ratings_', '_Min'),
-                                                target_overlap_percent, boosting_rate)
+                                                                       self.find_between(source_domain_filename, 'ratings_', '_Min'),
+                                                                       self.find_between(target_domain_filename, 'ratings_', '_Min'),
+                                                                       overlap_percent, boosting_rate)
         os.mkdir(working_folder + self.run_folder)
         os.mkdir(os.path.join(self.working_folder, self.run_folder, TEMP_FOLDER))
         os.mkdir(os.path.join(self.working_folder, self.run_folder, RMGM_FOLDER))
         os.mkdir(os.path.join(self.working_folder, self.run_folder, RMGM_BOOST_FOLDER))
         if not os.path.exists(os.path.join(self.working_folder, CROSS_FILTERED)):
             os.makedirs(os.path.join(self.working_folder, CROSS_FILTERED))
-        self.target_overlap_percent = target_overlap_percent
+        self.overlap_percent = overlap_percent
         self.users_count = users_count
         self.items_count = items_count
         self.double_items_count = items_count * 2
         self.folds = folds
         self.boosting_rate = boosting_rate
-        self.number_of_overlapping_users = int(self.users_count * self.target_overlap_percent)
+        self.number_of_overlapping_users = int(self.users_count * self.overlap_percent)
         self.number_of_nonoverlapping_users = self.users_count - self.number_of_overlapping_users
         self.step = 0
         self.string_of_params = '0:RMGM_Boost Initiated successfully: \nworking_folder={} \nsource_category_filename={} ' \
@@ -92,7 +92,7 @@ class RMGM_Boost(object):
             self.target_domain_filename,
             self.minimal_x_filename,
             self.run_folder,
-            self.target_overlap_percent,
+            self.overlap_percent,
             self.users_count,
             self.items_count,
             self.folds,
