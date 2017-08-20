@@ -69,10 +69,14 @@ class RMGM_Boost(object):
                                                                        self.find_between(source_domain_filename, 'ratings_', '_Min'),
                                                                        self.find_between(target_domain_filename, 'ratings_', '_Min'),
                                                                        overlap_percent, boosting_rate)
+
         os.mkdir(working_folder + self.run_folder)
+        self.rmgm_folder = os.path.join(self.working_folder, self.run_folder, RMGM_FOLDER)
+        os.mkdir(self.rmgm_folder)
+        self.rmgm_boost_folder = os.path.join(self.working_folder, self.run_folder, RMGM_BOOST_FOLDER)
+        os.mkdir(self.rmgm_boost_folder)
+
         os.mkdir(os.path.join(self.working_folder, self.run_folder, TEMP_FOLDER))
-        os.mkdir(os.path.join(self.working_folder, self.run_folder, RMGM_FOLDER))
-        os.mkdir(os.path.join(self.working_folder, self.run_folder, RMGM_BOOST_FOLDER))
         if not os.path.exists(os.path.join(self.working_folder, CROSS_FILTERED)):
             os.makedirs(os.path.join(self.working_folder, CROSS_FILTERED))
         self.overlap_percent = overlap_percent
@@ -606,10 +610,15 @@ class RMGM_Boost(object):
         # Extract data similar to overlap data
         self.extract_overlapping_data_to_learn_SVD_params()
         folds = self.split_to_train_and_test_for_svd_boosting(LEARN_SVD_PARAMS_SAMPLED_SOURCE_DATA_OVERLAP_LIST, LEARN_SVD_PARAMS_SAMPLED_TARGET_DATA_OVERLAP_LIST, LEARN_SVD_PARAMS)
-        factors = [10, 20, 40]#[10, 20, 30]
-        epochs = [10, 20, 40]#[10, 20, 30]
-        learning_rates = [0.0035, 0.007, 0.014]#[0.005, 0.007, 0.01]
-        regularizations = [0.01, 0.02, 0.04]#[0.01, 0.02, 0.05]
+        # factors = [5, 10, 20, 40]#[10, 20, 30]
+        # epochs = [10, 20, 40]#[10, 20, 30]
+        # learning_rates = [0.0035, 0.007, 0.014]#[0.005, 0.007, 0.01]
+        # regularizations = [0.01, 0.02, 0.04]#[0.01, 0.02, 0.05]
+
+        factors = [5, 10]#[10, 20, 30]
+        epochs = [5, 10]#[10, 20, 30]
+        learning_rates = [0.14, 0.2, 0.4]#[0.005, 0.007, 0.01]
+        regularizations = [0.04, 0.08]#[0.01, 0.02, 0.05]
         best_mean_rmse = sys.maxsize
         for fact in factors:
             for ep in epochs:
