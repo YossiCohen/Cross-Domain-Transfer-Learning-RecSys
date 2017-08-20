@@ -14,9 +14,9 @@ After downloading the data, you need to run Steps[1..5] in .\src\ folder to gene
 After the summary finished use RMGM_Boost_multiple_runs.py to run experiments.
 
 in any case you will need to update the Data folders - i.e. change:
- 
+ ```
  DATA_ROOT = "C:\\RS\\Amazon\\Tresholds\\MINIMAL_THRESHOLD_30\\"
- 
+ ```
  To a value relevant for your machine.
  
  Good luck!
